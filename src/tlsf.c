@@ -570,114 +570,36 @@ uintptr_t tlsf_get_total_size(void *t)
 
 void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
 {
-    tlsf_t *tlsf = t;
-    bhdr_t *b;
-    bhdr_t *bnext;
-    int fl;
-    int sl;
-
-    /* NULL pointer? just allocate the memory */
     if (unlikely(!ptr))
-        return tlsf_malloc(tlsf, new_size);
-
-    /* size = 0? free memory */
-    if (unlikely(!new_size))
-    {
-        tlsf_free(tlsf, ptr);
+        return tlsf_malloc(t, new_size);
+    if (unlikely(!new_size)) {
+        tlsf_free(t, ptr);
         return NULL;
     }
-
+    bhdr_t *b = MEM_TO_BHDR(ptr);
+    uintptr_t old = GET_SIZE(b);
     new_size = ROUNDUP(new_size);
-
-    b = MEM_TO_BHDR(ptr);
-
-    if (unlikely(new_size == GET_SIZE(b)))
+    if (new_size <= old) {
+        if (old - new_size > ROUNDUP(sizeof(hdr_t))) {
+            bhdr_t *b1 = GET_NEXT_BHDR(b, new_size);
+            bhdr_t *bnext = GET_NEXT_BHDR(b, old);
+            b1->header.prev = b;
+            SET_SIZE_AND_FLAGS(b1, old - new_size - ROUNDUP(sizeof(hdr_t)), THIS_BUSY | PREV_BUSY);
+            bnext->header.prev = b1;
+            SET_SIZE(b, new_size);
+            tlsf_free(t, b1->mem);          /* merges with a free next block, links it, flags the next one */
+        }
         return ptr;
-
-    bnext = GET_NEXT_BHDR(b, GET_SIZE(b));
-
-    /* Is new size smaller than the previous one? Try to split the block if this is the case */
-    if (new_size <= (GET_SIZE(b)))
-    {
-        /* New header starts right after the current block b */
-        bhdr_t * b1 = GET_NEXT_BHDR(b, new_size);
-
-        /* Update pointer and size */
-        b1->header.prev = b;
-        SET_SIZE_AND_FLAGS(b1, GET_SIZE(b) - new_size - ROUNDUP(sizeof(hdr_t)), THIS_FREE | PREV_BUSY);
-
-        /* Current block gets smaller */
-        SET_SIZE(b, new_size);
-
-        tlsf->free_size += GET_SIZE(b1);
-
-        /* Try to merge with next block */
-        b1 = MERGE_NEXT(tlsf, b1);
-
-        /* Tell next block that previous one is free. Also update the prev link in case it changed */
-        bnext = GET_NEXT_BHDR(b1, GET_SIZE(b1));
-        SET_FREE_PREV_BLOCK(bnext);
-        bnext->header.prev = b1;
-
-        /* Insert free block into the proper list */
-        INSERT_FREE_BLOCK(tlsf, b1);
     }
-    else
-    {
-        /* Is next block free? Is there enough free space? */
-        if (FREE_BLOCK(bnext) && new_size <= GET_SIZE(b) + GET_SIZE(bnext) + ROUNDUP(sizeof(hdr_t)))
-        {
-            bhdr_t *b1;
-            uintptr_t rest_size = ROUNDUP(sizeof(hdr_t)) + GET_SIZE(bnext) + GET_SIZE(b) - new_size;
-
-            MAPPING_INSERT(GET_SIZE(bnext), &fl, &sl);
-
-            REMOVE_HEADER(tlsf, bnext, fl, sl);
-
-            if (rest_size > ROUNDUP(sizeof(hdr_t)))
-            {
-                rest_size -= ROUNDUP(sizeof(hdr_t));
-
-                SET_SIZE(b, new_size);
-
-                b1 = GET_NEXT_BHDR(b, GET_SIZE(b));
-                b1->header.prev = b;
-
-                SET_SIZE_AND_FLAGS(b1, rest_size, THIS_FREE | PREV_BUSY);
-
-                bnext = GET_NEXT_BHDR(b1, GET_SIZE(b1));
-                bnext->header.prev = b1;
-                SET_FREE_PREV_BLOCK(bnext);
-
-                INSERT_FREE_BLOCK(tlsf, b1);
-            }
-            else
-            {
-                if (rest_size)
-                    SET_SIZE(b, new_size + ROUNDUP(sizeof(hdr_t)));
-                else
-                    SET_SIZE(b, new_size);
-
-                bnext = GET_NEXT_BHDR(b, GET_SIZE(b));
-                bnext->header.prev = b;
-                SET_BUSY_PREV_BLOCK(bnext);
-            }
-        }
-        else
-        {
-            /* Next block was not free. Create new buffer and copy old contents there */
-            void * p = tlsf_malloc(tlsf, new_size);
-            if (p)
-            {
-                memcpy(p, ptr, GET_SIZE(b));
-                tlsf_free(tlsf, ptr);
-                b = MEM_TO_BHDR(p);
-            }
-        }
-    }
-
-    return b->mem;
+    void *p = tlsf_malloc(t, new_size);
+    if (unlikely(!p))
+        return NULL;
+    memcpy(p, ptr, old);
+    tlsf_free(t, ptr);
+    return p;
 }
+
+
 
 /* Allocation of headers in memory:
  * hdr

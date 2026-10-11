@@ -11,6 +11,8 @@
 #include "ARM.h"
 #include "M68k.h"
 
+extern int kprintf(const char *format, ...);  /* armhf-port: forward decl */
+
 static struct {
     uint8_t rs_ARMReg;
     uint8_t rs_Dirty;
@@ -34,12 +36,14 @@ static struct {
 };
 static int8_t LRU_Table[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
 static uint16_t register_pool = 0;
+static uint8_t cc_used = 0;
 static uint16_t changed_mask = 0;
 
 static uint8_t FPU_AllocState;
 static uint8_t FPU_Reg_State[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 #define FPU_LOADED  0x01
 #define FPU_DIRTY   0x02
+
 
 uint16_t RA_GetChangedMask()
 {
@@ -49,6 +53,19 @@ uint16_t RA_GetChangedMask()
 void RA_ClearChangedMask()
 {
     changed_mask = 0;
+}
+
+void RA_ResetM68kAllocator(void)
+{
+    for (int i = 0; i < 16; i++) {
+        LRU_M68kRegisters[i].rs_ARMReg = 0xff;
+        LRU_M68kRegisters[i].rs_Dirty  = 0;
+    }
+    for (int i = 0; i < 8; i++)
+        LRU_Table[i] = -1;
+    register_pool = 0;
+    changed_mask  = 0;
+    cc_used       = 0;
 }
 
 void RA_ResetFPUAllocator()
@@ -79,6 +96,18 @@ void RA_FreeFPURegister(uint32_t **arm_stream, uint8_t arm_reg)
         if (FPU_AllocState & (1 << arm_reg))
             FPU_AllocState &= ~(1 << arm_reg);
     }
+}
+
+uint8_t RA_AllocFPURegisterPair(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+    for (int i = 2; i < 8; i += 2) {
+        if ((FPU_AllocState & (3 << i)) == 0) {
+            FPU_AllocState |= 3 << i;
+            return i;
+        }
+    }
+    return 0xff;
 }
 
 uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
@@ -147,6 +176,84 @@ void RA_StoreDirtyFPURegs(uint32_t **arm_stream)
     }
 }
 
+#ifdef EMU68_OMMX
+_Static_assert(__builtin_offsetof(struct M68KState, E[23]) <= 508,
+               "M68KState.E must stay within fldd/fstd's 8-bit word offset (127*4)");
+static uint8_t OMMX_Reg_State[16];
+#define OMMX_LOADED 0x01
+#define OMMX_DIRTY  0x02
+
+uint8_t RA_MapOMMXRegister(uint32_t **arm_stream, uint8_t e_reg)
+{
+    uint8_t i = (e_reg - 8) & 15;           /* E8..E23 -> 0..15 */
+
+    if (OMMX_Reg_State[i] & OMMX_LOADED)
+        return 16 + i;
+
+    OMMX_Reg_State[i] = OMMX_LOADED;
+    **arm_stream = fldd(16 + i, REG_CTX, __builtin_offsetof(struct M68KState, E[8 + i]) / 4);
+    (*arm_stream)++;
+    return 16 + i;
+}
+
+uint8_t RA_MapOMMXRegisterForWrite(uint32_t **arm_stream, uint8_t e_reg)
+{
+    (void)arm_stream;
+    uint8_t i = (e_reg - 8) & 15;
+    OMMX_Reg_State[i] = OMMX_LOADED | OMMX_DIRTY;
+    return 16 + i;
+}
+
+void RA_SetDirtyOMMXRegister(uint32_t **arm_stream, uint8_t e_reg)
+{
+    uint8_t i = (e_reg - 8) & 15;
+    RA_MapOMMXRegister(arm_stream, e_reg);
+    OMMX_Reg_State[i] |= OMMX_DIRTY;
+}
+
+void RA_StoreDirtyOMMXRegs(uint32_t **arm_stream)
+{
+    for (int i = 0; i < 16; i++)
+        if (OMMX_Reg_State[i] & OMMX_DIRTY) {
+            **arm_stream = fstd(16 + i, REG_CTX, __builtin_offsetof(struct M68KState, E[8 + i]) / 4);
+            (*arm_stream)++;
+        }
+}
+
+void RA_FlushOMMXRegs(uint32_t **arm_stream)
+{
+    for (int i = 0; i < 16; i++) {
+        if (OMMX_Reg_State[i] & OMMX_DIRTY) {
+            **arm_stream = fstd(16 + i, REG_CTX, __builtin_offsetof(struct M68KState, E[8 + i]) / 4);
+            (*arm_stream)++;
+        }
+        OMMX_Reg_State[i] = 0;
+    }
+}
+
+void RA_ResetOMMXAllocator(void)
+{
+    for (int i = 0; i < 16; i++)
+        OMMX_Reg_State[i] = 0;
+}
+
+int RA_OMMXBankLive(void)
+{
+    for (int i = 0; i < 16; i++)
+        if (OMMX_Reg_State[i])
+            return 1;
+    return 0;
+}
+#else
+uint8_t RA_MapOMMXRegister(uint32_t **arm_stream, uint8_t e_reg)         { (void)arm_stream; (void)e_reg; return 0xff; }
+uint8_t RA_MapOMMXRegisterForWrite(uint32_t **arm_stream, uint8_t e_reg) { (void)arm_stream; (void)e_reg; return 0xff; }
+void    RA_SetDirtyOMMXRegister(uint32_t **arm_stream, uint8_t e_reg)    { (void)arm_stream; (void)e_reg; }
+void    RA_StoreDirtyOMMXRegs(uint32_t **arm_stream)                     { (void)arm_stream; }
+void    RA_FlushOMMXRegs(uint32_t **arm_stream)                          { (void)arm_stream; }
+void    RA_ResetOMMXAllocator(void)                                      { }
+int     RA_OMMXBankLive(void)                                            { return 0; }
+#endif
+
 /* Touch given register in order to move it to the front */
 void RA_TouchM68kRegister(uint32_t **arm_stream, uint8_t index)
 {
@@ -175,7 +282,6 @@ void RA_SetDirtyM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
     (void)arm_stream;
     LRU_M68kRegisters[m68k_reg & 15].rs_Dirty = 1;
 }
-
 void RA_DiscardM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
 {
     if (LRU_M68kRegisters[m68k_reg].rs_Dirty)
@@ -198,6 +304,19 @@ void RA_DiscardM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
     LRU_M68kRegisters[m68k_reg].rs_Dirty = 0;
     LRU_M68kRegisters[m68k_reg].rs_ARMReg = 0xff;
     RA_FreeARMRegister(arm_stream, arm_reg);
+}
+
+void RA_UnmapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
+{
+    m68k_reg &= 15;
+    if (LRU_M68kRegisters[m68k_reg].rs_ARMReg != 0xff)
+        RA_DiscardM68kRegister(arm_stream, m68k_reg);
+}
+
+/* IsM68kRegister: is m68k_reg currently mapped to an ARM register? (1/0) */
+int RA_IsM68kRegister(uint8_t m68k_reg)
+{
+    return LRU_M68kRegisters[m68k_reg & 15].rs_ARMReg != 0xff;
 }
 
 void RA_StoreDirtyM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
@@ -237,12 +356,14 @@ void RA_FlushM68kRegs(uint32_t **arm_stream)
         LRU_Table[i] = -1;
 }
 
+
 /* Insert new register into LRU table */
 void RA_InsertM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
 {
     (void)arm_stream;
-    if (LRU_Table[7] != -1)
+    if (LRU_Table[7] != -1) {
         RA_DiscardM68kRegister(arm_stream, LRU_Table[7]);
+    }
 
     for (int i=7; i > 0; --i)
         LRU_Table[i] = LRU_Table[i-1];
@@ -407,10 +528,9 @@ void RA_AssignM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg, uint8_t arm_
     RA_InsertM68kRegister(arm_stream, m68k_reg);
 }
 
-/* Allocate register R0-R9 for JIT */
 static uint8_t __int_arm_alloc_reg()
 {
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 9; i++)
     {
         if ((register_pool & (1 << i)) == 0)
         {
@@ -427,7 +547,7 @@ uint16_t RA_GetTempAllocMask()
 {
     uint16_t map = 0;
 
-    for (int i=0; i < 10; i++)
+    for (int i=0; i < 9; i++)   /* r9 reserved as REG_EMIT_TMP */
     {
         if (register_pool & (1 << i))
         {
@@ -507,13 +627,14 @@ void M68K_StoreCC(uint32_t **ptr) __attribute__((alias("RA_StoreCC")));
 
 int RA_IsCCLoaded()
 {
-    return (got_CC != 0);
+    return (cc_used != 0);
 }
 
 int RA_IsCCModified()
 {
     return (mod_CC != 0);
 }
+
 
 uint8_t RA_GetCTX(uint32_t **ptr)
 {
@@ -522,8 +643,20 @@ uint8_t RA_GetCTX(uint32_t **ptr)
     return REG_CTX;
 }
 
+uint8_t RA_TryCTX(uint32_t **ptr)
+{
+    (void)ptr;
+    return REG_CTX;
+}
+
+void RA_FlushCTX(uint32_t **ptr)
+{
+    (void)ptr;
+}
+
 uint8_t RA_GetCC(uint32_t **ptr)
 {
+    cc_used = 1;                /* r10 is live from here on, read-only use included */
     if (got_CC == 0)
     {
         **ptr = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
@@ -598,10 +731,13 @@ void RA_StoreFPCR(uint32_t **ptr)
 
 void RA_FlushFPCR(uint32_t **ptr)
 {
-    if (reg_FPCR != 0xff && mod_FPCR)
+    if (reg_FPCR != 0xff)
     {
-        **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
-        (*ptr)++;
+        if (mod_FPCR)
+        {
+            **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+            (*ptr)++;
+        }
         RA_FreeARMRegister(ptr, reg_FPCR);
     }
     reg_FPCR = 0xff;
@@ -639,12 +775,76 @@ void RA_StoreFPSR(uint32_t **ptr)
 
 void RA_FlushFPSR(uint32_t **ptr)
 {
-    if (reg_FPSR != 0xff && mod_FPSR)
+    if (reg_FPSR != 0xff)
     {
-        **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
-        (*ptr)++;
+        if (mod_FPSR)
+        {
+            **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+            (*ptr)++;
+        }
         RA_FreeARMRegister(ptr, reg_FPSR);
     }
     reg_FPSR = 0xff;
     mod_FPSR = 0;
+}
+
+void RA_SaveState(struct RA_Snapshot *s)
+{
+    for (int i = 0; i < 16; i++) {
+        s->arm[i]   = LRU_M68kRegisters[i].rs_ARMReg;
+        s->dirty[i] = LRU_M68kRegisters[i].rs_Dirty;
+    }
+    for (int i = 0; i < 8; i++) {
+        s->lru[i]       = LRU_Table[i];
+        s->fpu_state[i] = FPU_Reg_State[i];
+    }
+#ifdef EMU68_OMMX
+    for (int i = 0; i < 16; i++)
+        s->ommx_state[i] = OMMX_Reg_State[i];
+#endif
+    s->pool      = register_pool;
+    s->got_cc    = got_CC;    s->mod_cc    = mod_CC;
+    s->reg_fpcr  = reg_FPCR;  s->mod_fpcr  = mod_FPCR;
+    s->reg_fpsr  = reg_FPSR;  s->mod_fpsr  = mod_FPSR;
+    s->fpu_alloc = FPU_AllocState;
+}
+
+void RA_RestoreState(const struct RA_Snapshot *s)
+{
+    for (int i = 0; i < 16; i++) {
+        LRU_M68kRegisters[i].rs_ARMReg = s->arm[i];
+        LRU_M68kRegisters[i].rs_Dirty  = s->dirty[i];
+    }
+    for (int i = 0; i < 8; i++) {
+        LRU_Table[i]     = s->lru[i];
+        FPU_Reg_State[i] = s->fpu_state[i];
+    }
+#ifdef EMU68_OMMX
+    for (int i = 0; i < 16; i++)
+        OMMX_Reg_State[i] = s->ommx_state[i];
+#endif
+    register_pool  = s->pool;
+    got_CC         = s->got_cc;    mod_CC   = s->mod_cc;
+    reg_FPCR       = s->reg_fpcr;  mod_FPCR = s->mod_fpcr;
+    reg_FPSR       = s->reg_fpsr;  mod_FPSR = s->mod_fpsr;
+    FPU_AllocState = s->fpu_alloc;
+}
+
+
+int RA_AllStateFlushed(void)
+{
+    for (int i = 0; i < 16; i++)
+        if (LRU_M68kRegisters[i].rs_ARMReg != 0xff || LRU_M68kRegisters[i].rs_Dirty)
+            return 0;
+    for (int i = 0; i < 8; i++)
+        if (LRU_Table[i] != -1 || FPU_Reg_State[i] != 0)
+            return 0;
+#ifdef EMU68_OMMX
+    for (int i = 0; i < 16; i++)
+        if (OMMX_Reg_State[i] != 0)
+            return 0;
+#endif
+    if (got_CC || reg_FPCR != 0xff || reg_FPSR != 0xff)
+        return 0;
+    return 1;
 }

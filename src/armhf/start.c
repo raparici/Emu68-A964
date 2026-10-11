@@ -42,8 +42,32 @@ asm("   .section .startup           \n"
 "       dsb                         \n"
 "       mcr     p15,0,r0,c7,c5,0    \n" /* invalidate icache */
 "       isb                         \n"
+#if defined(DE10NANO)
+"       adr     r10, _start          \n"
+"       lsr     r10, r10, #20        \n"
+"       lsl     r10, r10, #20        \n"
+"       ldr     r4, mmu_table_ptr    \n"
+"       add     r4, r4, r10          \n"
+"       ldr     r7, =0x00004c06      \n"
+"       lsr     r5, r10, #20         \n"
+"       mov     r6, #0               \n"
+"7:                                  \n"
+"       add     r8, r10, r6, lsl #20 \n"
+"       orr     r8, r8, r7           \n" /* | attrs                                  */
+"       add     r9, r5, r6           \n" /* low-identity section (load_sec + i)      */
+"       str     r8, [r4, r9, lsl #2] \n"
+"       add     r9, r6, #0xff0       \n"
+"       add     r9, r9, #0x008       \n" /* shadow section (0xff8 + i)               */
+"       str     r8, [r4, r9, lsl #2] \n"
+"       add     r6, r6, #1           \n"
+"       cmp     r6, #8               \n"
+"       blo     7b                   \n"
+"       dsb                          \n" /* publish the patched descriptors to DDR   */
+"       mcr     p15,0,r4,c2,c0,0     \n"
+#else
 "       ldr     r4, mmu_table_ptr   \n" /* Load MMU table pointer */
 "       mcr     p15,0,r4,c2,c0,0    \n" /* Write page_dir address to ttbr0 */
+#endif
 "       mov     r8, #0              \n"
 "       mcr     p15,0,r8,c2,c0,2    \n" /* Write ttbr control N = 0 (use only ttbr0) */
 "       mov     r4, #1              \n"

@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -41,7 +42,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = subs_reg(dest, dest, src, LSL, 0);
 #else
-                *ptr++ = subs_reg(dest, dest, src, 0);
+                *ptr++ = subs_reg(dest, dest, src, LSL, 0);
 #endif
                 break;
             case 2:
@@ -49,7 +50,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = lsl(tmp, dest, 16);
                 *ptr++ = subs_reg(src, tmp, src, LSL, 16);
-                *ptr++ = bfxil(dest, src, 16, 16);
+                EMIT_bfxil(&ptr, dest, src, 16, 16, REG_EMIT_TMP);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
                 *ptr++ = lsl_immed(src, src, 16);
@@ -63,7 +64,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = lsl(tmp, dest, 24);
                 *ptr++ = subs_reg(src, tmp, src, LSL, 24);
-                *ptr++ = bfxil(dest, src, 24, 8);
+                EMIT_bfxil(&ptr, dest, src, 24, 8, REG_EMIT_TMP);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
                 *ptr++ = lsl_immed(src, src, 24);
@@ -104,7 +105,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
             *ptr++ = subs_reg(tmp, tmp, src, LSL, 0);
 #else
-            *ptr++ = subs_reg(tmp, tmp, src, 0);
+            *ptr++ = subs_reg(tmp, tmp, src, LSL, 0);
 #endif
             /* Store back */
             if (mode == 3)
@@ -130,7 +131,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = lsr(tmp, tmp, 16);
 #else
             *ptr++ = lsl_immed(tmp, tmp, 16);
-            *ptr++ = subs_reg(tmp, tmp, src, 16);
+            *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
             *ptr++ = lsr_immed(tmp, tmp, 16);
 #endif
             /* Store back */
@@ -158,7 +159,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = lsr(tmp, tmp, 24);
 #else
             *ptr++ = lsl_immed(tmp, tmp, 24);
-            *ptr++ = subs_reg(tmp, tmp, src, 24);
+            *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
             *ptr++ = lsr_immed(tmp, tmp, 24);
 #endif
             /* Store back */
@@ -227,9 +228,9 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = sub_reg(reg, reg, tmp, LSL, 0);
 #else
     if (size == 2)
-        *ptr++ = sxth(tmp, tmp, 0);
+        *ptr++ = sxth(tmp, tmp);
 
-    *ptr++ = sub_reg(reg, reg, tmp, 0);
+    *ptr++ = sub_reg(reg, reg, tmp, LSL, 0);
 #endif
     RA_FreeARMRegister(&ptr, tmp);
 
@@ -261,7 +262,7 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 #else
     M68K_GetCC(&ptr);
-    *ptr++ = tst_immed(REG_SR, SR_X);
+    *ptr++ = _tst_val(REG_SR, SR_X);
 #endif
     /* Register to register */
     if ((opcode & 0x0008) == 0)
@@ -291,8 +292,8 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = eor_reg(tmp_3, tmp_2, regx, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, tmp_2, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 6, 2);
+                    EMIT_bfxil(&ptr, tmp_3, tmp, 2, 7, REG_EMIT_TMP);            // C at position 6, V at position 7
+                    EMIT_bfxil(&ptr, cc, tmp_3, 6, 2, REG_EMIT_TMP);
 
                     if (update_mask & SR_X) {
                         *ptr++ = bfi(cc, cc, 4, 1);
@@ -307,15 +308,44 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = adds_reg(31, 31, tmp, LSL, 24);
                 }
 
-                *ptr++ = bfxil(regy, tmp, 0, 8);
+                EMIT_bfxil(&ptr, regy, tmp, 0, 8, REG_EMIT_TMP);
                 RA_FreeARMRegister(&ptr, tmp);
                 RA_FreeARMRegister(&ptr, tmp_2);
 #else
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = lsl_immed(tmp, regx, 24);
-                *ptr++ = sub_cc_immed(ARM_CC_NE, tmp, tmp, 0x401);
+                *ptr++ = add_cc_immed(ARM_CC_NE, tmp, tmp, 0x401);
                 *ptr++ = rsbs_reg(tmp, tmp, regy, 24);
                 *ptr++ = lsr_immed(tmp, tmp, 24);
+                if (update_mask & (SR_X | SR_C)) {
+                    uint8_t cc = RA_ModifyCC(&ptr);
+                    uint8_t bb = RA_AllocARMRegister(&ptr);
+                    uint8_t bx = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ubfx(bb, regy, 0, 8);           /* dest byte (before bfi) */
+                    *ptr++ = ubfx(bx, regx, 0, 8);           /* src byte               */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bb, bb, bx, 0);   /* dest - src     */
+                    *ptr++ = ubfx(bx, REG_SR, SRB_X, 1);     /* X in                   */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bb, bb, bx, 0);   /* dest - src - X */
+                    *ptr++ = ubfx(bb, bb, 8, 1);
+                    if (update_mask & SR_C) *ptr++ = bfi(cc, bb, SRB_C, 1);
+                    if (update_mask & SR_X) *ptr++ = bfi(cc, bb, SRB_X, 1);
+                    RA_FreeARMRegister(&ptr, bb);
+                    RA_FreeARMRegister(&ptr, bx);
+                    update_mask &= ~(SR_X | SR_C);
+                }
+                if (update_mask & SR_V) {
+                    uint8_t ccv = RA_ModifyCC(&ptr);
+                    uint8_t v1 = RA_AllocARMRegister(&ptr);
+                    uint8_t v2 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = eor_reg(v1, regy, regx, LSL, 0);
+                    *ptr++ = eor_reg(v2, regy, tmp, LSL, 0);
+                    *ptr++ = and_reg(v1, v1, v2, LSL, 0);
+                    *ptr++ = ubfx(v1, v1, 7, 1);
+                    *ptr++ = bfi(ccv, v1, SRB_V, 1);
+                    RA_FreeARMRegister(&ptr, v1);
+                    RA_FreeARMRegister(&ptr, v2);
+                    update_mask &= ~SR_V;
+                }
                 *ptr++ = bfi(regy, tmp, 0, 8);
                 RA_FreeARMRegister(&ptr, tmp);
 #endif
@@ -337,8 +367,8 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = eor_reg(tmp_3, tmp_2, regx, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, tmp_2, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 14, 2);
+                    EMIT_bfxil(&ptr, tmp_3, tmp, 2, 15, REG_EMIT_TMP);            // C at position 6, V at position 7
+                    EMIT_bfxil(&ptr, cc, tmp_3, 14, 2, REG_EMIT_TMP);
 
                     if (update_mask & SR_X) {
                         *ptr++ = bfi(cc, cc, 4, 1);
@@ -353,23 +383,53 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = adds_reg(31, 31, tmp, LSL, 16);
                 }
 
-                *ptr++ = bfxil(regy, tmp, 0, 16);
+                EMIT_bfxil(&ptr, regy, tmp, 0, 16, REG_EMIT_TMP);
                 RA_FreeARMRegister(&ptr, tmp);
                 RA_FreeARMRegister(&ptr, tmp_2);
 #if 0
                 tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = csetm(tmp, A64_CC_NE);
+                EMIT_csetm(&ptr, tmp, A64_CC_NE);
                 *ptr++ = add_reg(tmp, tmp, regy, LSL, 16);
                 *ptr++ = subs_reg(tmp, tmp, regx, LSL, 16);
-                *ptr++ = bfxil(regy, tmp, 16, 16);
+                EMIT_bfxil(&ptr, regy, tmp, 16, 16, REG_EMIT_TMP);
                 RA_FreeARMRegister(&ptr, tmp);
 #endif
 #else
                 tmp = RA_AllocARMRegister(&ptr);
+                /* same sign fix as the byte form above */
                 *ptr++ = lsl_immed(tmp, regx, 16);
-                *ptr++ = sub_cc_immed(ARM_CC_NE, tmp, tmp, 0x801);
+                *ptr++ = add_cc_immed(ARM_CC_NE, tmp, tmp, 0x801);
                 *ptr++ = rsbs_reg(tmp, tmp, regy, 16);
                 *ptr++ = lsr_immed(tmp, tmp, 16);
+                if (update_mask & (SR_X | SR_C)) {
+                    uint8_t cc = RA_ModifyCC(&ptr);
+                    uint8_t bb = RA_AllocARMRegister(&ptr);
+                    uint8_t bx = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ubfx(bb, regy, 0, 16);          /* dest word (before bfi) */
+                    *ptr++ = ubfx(bx, regx, 0, 16);          /* src word               */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bb, bb, bx, 0);   /* dest - src     */
+                    *ptr++ = ubfx(bx, REG_SR, SRB_X, 1);     /* X in                   */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bb, bb, bx, 0);   /* dest - src - X */
+                    *ptr++ = ubfx(bb, bb, 16, 1);
+                    if (update_mask & SR_C) *ptr++ = bfi(cc, bb, SRB_C, 1);
+                    if (update_mask & SR_X) *ptr++ = bfi(cc, bb, SRB_X, 1);
+                    RA_FreeARMRegister(&ptr, bb);
+                    RA_FreeARMRegister(&ptr, bx);
+                    update_mask &= ~(SR_X | SR_C);
+                }
+                if (update_mask & SR_V) {
+                    uint8_t ccv = RA_ModifyCC(&ptr);
+                    uint8_t v1 = RA_AllocARMRegister(&ptr);
+                    uint8_t v2 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = eor_reg(v1, regy, regx, LSL, 0);
+                    *ptr++ = eor_reg(v2, regy, tmp, LSL, 0);
+                    *ptr++ = and_reg(v1, v1, v2, LSL, 0);
+                    *ptr++ = ubfx(v1, v1, 15, 1);
+                    *ptr++ = bfi(ccv, v1, SRB_V, 1);
+                    RA_FreeARMRegister(&ptr, v1);
+                    RA_FreeARMRegister(&ptr, v2);
+                    update_mask &= ~SR_V;
+                }
                 *ptr++ = bfi(regy, tmp, 0, 16);
                 RA_FreeARMRegister(&ptr, tmp);
 #endif
@@ -380,8 +440,13 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = sbcs(regy, regy, regx);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
-                *ptr++ = sub_cc_immed(ARM_CC_NE, regy, regy, 1);
-                *ptr++ = subs_reg(regy, regy, regx, 0);
+                {
+                    uint8_t txc = RA_AllocARMRegister(&ptr);
+                    *ptr++ = eor_cc_immed(ARM_CC_AL, txc, REG_SR, 0x010);   /* flip X bit          */
+                    *ptr++ = lsrs_immed(txc, txc, 5);                       /* ARM C = ~X          */
+                    *ptr++ = sbcs_reg(regy, regy, regx, 0);                 /* regy - regx - X     */
+                    RA_FreeARMRegister(&ptr, txc);
+                }
 #endif
                 break;
         }
@@ -417,8 +482,8 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = eor_reg(tmp_3, dest, src, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, dest, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 6, 2);
+                    EMIT_bfxil(&ptr, tmp_3, tmp, 2, 7, REG_EMIT_TMP);            // C at position 6, V at position 7
+                    EMIT_bfxil(&ptr, cc, tmp_3, 6, 2, REG_EMIT_TMP);
 
                     if (update_mask & SR_X) {
                         *ptr++ = bfi(cc, cc, 4, 1);
@@ -437,11 +502,43 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = strb_offset(regy, tmp, 0);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
-                *ptr++ = lsl_immed(src, src, 24);
-                *ptr++ = sub_cc_immed(ARM_CC_NE, dest, dest, 0x401);
-                *ptr++ = rsbs_reg(dest, src, dest, 24);
-                *ptr++ = lsr_immed(dest, dest, 24);
-                *ptr++ = strb_offset(regy, dest, 0);
+                uint8_t bor_b = 0xff;
+                if (update_mask & (SR_X | SR_C)) {
+                    uint8_t bx = RA_AllocARMRegister(&ptr);
+                    bor_b = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ubfx(bx, REG_SR, SRB_X, 1);                  /* X                  */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bor_b, dest, src, 0);  /* dest - src (bytes) */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bor_b, bor_b, bx, 0);  /* - X                */
+                    *ptr++ = ubfx(bor_b, bor_b, 8, 1);
+                    RA_FreeARMRegister(&ptr, bx);
+                }
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = lsl_immed(tmp, src, 24);
+                *ptr++ = add_cc_immed(ARM_CC_NE, tmp, tmp, 0x401);
+                *ptr++ = rsbs_reg(tmp, tmp, dest, 24);
+                *ptr++ = lsr_immed(tmp, tmp, 24);
+                *ptr++ = strb_offset(regy, tmp, 0);
+                if (update_mask & (SR_X | SR_C)) {
+                    uint8_t cc = RA_ModifyCC(&ptr);
+                    if (update_mask & SR_C) *ptr++ = bfi(cc, bor_b, SRB_C, 1);
+                    if (update_mask & SR_X) *ptr++ = bfi(cc, bor_b, SRB_X, 1);
+                    RA_FreeARMRegister(&ptr, bor_b);
+                    update_mask &= ~(SR_X | SR_C);
+                }
+                if (update_mask & SR_V) {
+                    uint8_t ccv = RA_ModifyCC(&ptr);
+                    uint8_t v1 = RA_AllocARMRegister(&ptr);
+                    uint8_t v2 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = eor_reg(v1, dest, src, LSL, 0);
+                    *ptr++ = eor_reg(v2, dest, tmp, LSL, 0);
+                    *ptr++ = and_reg(v1, v1, v2, LSL, 0);
+                    *ptr++ = ubfx(v1, v1, 7, 1);
+                    *ptr++ = bfi(ccv, v1, SRB_V, 1);
+                    RA_FreeARMRegister(&ptr, v1);
+                    RA_FreeARMRegister(&ptr, v2);
+                    update_mask &= ~SR_V;
+                }
+                RA_FreeARMRegister(&ptr, tmp);
 #endif
                 break;
             case 1: /* Word */
@@ -461,8 +558,8 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = eor_reg(tmp_3, dest, src, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, dest, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 14, 2);
+                    EMIT_bfxil(&ptr, tmp_3, tmp, 2, 15, REG_EMIT_TMP);            // C at position 6, V at position 7
+                    EMIT_bfxil(&ptr, cc, tmp_3, 14, 2, REG_EMIT_TMP);
 
                     if (update_mask & SR_X) {
                         *ptr++ = bfi(cc, cc, 4, 1);
@@ -481,11 +578,43 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = strh_offset(regy, tmp, 0);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
-                *ptr++ = lsl_immed(src, src, 16);
-                *ptr++ = sub_cc_immed(ARM_CC_NE, dest, dest, 0x801);
-                *ptr++ = rsbs_reg(dest, src, dest, 16);
-                *ptr++ = lsr_immed(dest, dest, 16);
-                *ptr++ = strh_offset(regy, dest, 0);
+                uint8_t bor_w = 0xff;
+                if (update_mask & (SR_X | SR_C)) {
+                    uint8_t bx = RA_AllocARMRegister(&ptr);
+                    bor_w = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ubfx(bx, REG_SR, SRB_X, 1);                  /* X                  */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bor_w, dest, src, 0);  /* dest - src (words) */
+                    *ptr++ = sub_cc_reg(ARM_CC_AL, bor_w, bor_w, bx, 0);  /* - X                */
+                    *ptr++ = ubfx(bor_w, bor_w, 16, 1);
+                    RA_FreeARMRegister(&ptr, bx);
+                }
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = lsl_immed(tmp, src, 16);
+                *ptr++ = add_cc_immed(ARM_CC_NE, tmp, tmp, 0x801);
+                *ptr++ = rsbs_reg(tmp, tmp, dest, 16);
+                *ptr++ = lsr_immed(tmp, tmp, 16);
+                *ptr++ = strh_offset(regy, tmp, 0);
+                if (update_mask & (SR_X | SR_C)) {
+                    uint8_t cc = RA_ModifyCC(&ptr);
+                    if (update_mask & SR_C) *ptr++ = bfi(cc, bor_w, SRB_C, 1);
+                    if (update_mask & SR_X) *ptr++ = bfi(cc, bor_w, SRB_X, 1);
+                    RA_FreeARMRegister(&ptr, bor_w);
+                    update_mask &= ~(SR_X | SR_C);
+                }
+                if (update_mask & SR_V) {
+                    uint8_t ccv = RA_ModifyCC(&ptr);
+                    uint8_t v1 = RA_AllocARMRegister(&ptr);
+                    uint8_t v2 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = eor_reg(v1, dest, src, LSL, 0);
+                    *ptr++ = eor_reg(v2, dest, tmp, LSL, 0);
+                    *ptr++ = and_reg(v1, v1, v2, LSL, 0);
+                    *ptr++ = ubfx(v1, v1, 15, 1);
+                    *ptr++ = bfi(ccv, v1, SRB_V, 1);
+                    RA_FreeARMRegister(&ptr, v1);
+                    RA_FreeARMRegister(&ptr, v2);
+                    update_mask &= ~SR_V;
+                }
+                RA_FreeARMRegister(&ptr, tmp);
 #endif
                 break;
             case 2: /* Long */
@@ -497,8 +626,13 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = str_offset(regy, dest, 0);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
-                *ptr++ = sub_cc_immed(ARM_CC_NE, dest, dest, 1);
-                *ptr++ = subs_reg(dest, dest, src, 0);
+                {
+                    uint8_t txc = RA_AllocARMRegister(&ptr);
+                    *ptr++ = eor_cc_immed(ARM_CC_AL, txc, REG_SR, 0x010);   /* flip X bit      */
+                    *ptr++ = lsrs_immed(txc, txc, 5);                       /* ARM C = ~X      */
+                    *ptr++ = sbcs_reg(dest, dest, src, 0);                  /* dest - src - X  */
+                    RA_FreeARMRegister(&ptr, txc);
+                }
                 *ptr++ = str_offset(regy, dest, 0);
 #endif
                 break;
@@ -519,6 +653,8 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
             *ptr++ = b_cc(ARM_CC_EQ, 2);
             *ptr++ = bic_immed(cc, cc, 1, 30);
+#else
+            *ptr++ = bic_cc_immed(ARM_CC_NE, cc, cc, SR_Z);
 #endif
             update_mask &= ~SR_Z;
         }
@@ -558,12 +694,12 @@ static struct OpcodeDef InsnTable[512] = {
 	[0320 ... 0347] = { { EMIT_SUBA_mem }, NULL, 0, 0, 1, 0, 2 },
 	[0350 ... 0374] = { { EMIT_SUBA_ext }, NULL, 0, 0, 1, 1, 2 }, //Word
 
-	[0400 ... 0407] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR, 1, 0, 1 },
-	[0410 ... 0417] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR, 1, 0, 1 }, //R0
-	[0500 ... 0507] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[0510 ... 0517] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[0600 ... 0607] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR, 1, 0, 4 },
-	[0610 ... 0617] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[0400 ... 0407] = { { EMIT_SUBX_reg }, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
+	[0410 ... 0417] = { { EMIT_SUBX_mem }, NULL, SR_XZ, SR_CCR, 1, 0, 1 }, //R0
+	[0500 ... 0507] = { { EMIT_SUBX_reg }, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+	[0510 ... 0517] = { { EMIT_SUBX_mem }, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+	[0600 ... 0607] = { { EMIT_SUBX_reg }, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
+	[0610 ... 0617] = { { EMIT_SUBX_mem }, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
 
 	[0420 ... 0447] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR, 1, 0, 1 },
 	[0450 ... 0471] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR, 1, 1, 1 },  //D0 Source

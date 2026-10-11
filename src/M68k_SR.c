@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -10,6 +11,8 @@
 #include "support.h"
 #include "M68k.h"
 #include "EmuFeatures.h"
+#include "OMMX.h"
+#include "config.h"   /* CPUMODEL_* - the tri-state CPU model predicates */
 
 uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
 {
@@ -149,6 +152,12 @@ int M68K_GetMoveLength(uint16_t *insn_stream)
     return length;    
 }
 
+#ifdef EMU68_CPU040
+extern int CpuModel;
+#else
+#define CpuModel CPUMODEL_68EC020
+#endif
+
 int M68K_GetLineFLength(uint16_t *insn_stream)
 {
     uint16_t opcode = BE16(insn_stream[0]);
@@ -157,8 +166,18 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
     int need_ea = 0;
     int opsize = 0;
 
+    if ((opcode & 0xfc00) == 0xfc00)
+    {
+        if ((opcode & 0x3f) == 0x3f && (opcode2 & 0xf0) == 0x00)
+            length = 4;                             /* VPERM #imm32,a,b,d - no EA, fixed length */
+        else {
+            length = 2;
+            need_ea = 1;
+            opsize = (opcode & 0x100) ? 1 : 4;
+        }
+    }
     /* MOVE16 (Ax)+, (Ay)+ */
-    if ((opcode & 0xfff8) == 0xf620 && (opcode2 & 0x8fff) == 0x8000)
+    else if ((opcode & 0xfff8) == 0xf620 && (opcode2 & 0x8fff) == 0x8000)
     {
         length = 2;
     }
@@ -166,6 +185,15 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
     else if ((opcode & 0xffe0) == 0xf600)
     {
         length = 3;
+    }
+    else if (CPUMODEL_IS_060(CpuModel) && opcode == 0xf800)
+    {
+        length = 3;
+    }
+    else if (CPUMODEL_IS_060(CpuModel) &&
+             ((opcode & 0xfff8) == 0xf588 || (opcode & 0xfff8) == 0xf5c8))
+    {
+        length = 1;
     }
     /* CINV */
     else if ((opcode & 0xff20) == 0xf400)
@@ -608,6 +636,23 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
             }
         }
     }
+    else if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0)
+    {
+        need_ea = 0;
+        opsize = 1;
+        length = 3;
+    }
+    else if ((opcode & 0xfff8) == 0xf278 && (opcode & 7) >= 2 && (opcode2 & 0xffc0) == 0)
+    {
+        need_ea = 0;
+        opsize = 1;
+        switch (opcode & 7)
+        {
+            case 2:  length = 3; break;     /* word operand */
+            case 3:  length = 4; break;     /* long operand */
+            default: length = 2; break;     /* case 4: no operand (5/6/7 are illegal anyway) */
+        }
+    }
     /* FScc */
     else if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0)
     {
@@ -770,7 +815,7 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
 /* Get number of 16-bit words this instruction occupies */
 int M68K_GetINSNLength(uint16_t *insn_stream)
 {
-    uint16_t opcode = *insn_stream;
+    uint16_t opcode = BE16(*insn_stream);
     int length = 0;
 
     switch(opcode & 0xf000)
@@ -855,20 +900,44 @@ static SR_Check SRCheck[16] = {
     GetSR_def
 };
 
+static inline uint32_t SR_FlagsAt(uint16_t opcode, uint16_t *stream)
+{
+#ifdef EMU68_A3D
+    if (opcode == OMMX_ONCALL_W1 && BE16(stream[1]) == OMMX_ONCALL_W2 && EnableOMMX && g_oncall_on)
+        return (uint32_t)SR_CCR << 16;
+#endif
+    if ((opcode & 0xfc00) == 0xfc00 && EnableOMMX && OMMX_IsImplemented(opcode, BE16(stream[1])))
+        return 0;
+    return SRCheck[opcode >> 12](opcode);
+}
+
+
 /* Get the mask of status flags changed by the instruction specified by the opcode */
 uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 {
     uint16_t opcode = BE16(*insn_stream);
     int scan_depth = 0;
-    const int max_scan_depth = 20;
+    int max_scan_depth = (int)Options.M68K_CCR_SCAN_DEPTH;
     uint8_t mask = 0;
     uint8_t needed = 0;
     uint8_t tmp_sets = 0;
     uint8_t tmp_needs = 0;
 
+#if EMU68_CCR_BREAK_AT_UNIT_END
+    {
+        extern uint32_t insn_count;
+        uint32_t remaining = Options.M68K_TRANSLATION_DEPTH - insn_count - 1u;
+        if (remaining > (uint32_t)EMU68_M68K_INSN_DEPTH) remaining = 0u;   /* wrapped => nothing left */
+        if ((uint32_t)max_scan_depth > remaining)
+        {
+            max_scan_depth = (int)remaining;
+        }
+    }
+#endif
+
     D(kprintf("[JIT] GetSRMask, opcode %04x @ %08x, ", opcode, insn_stream));
 
-    uint32_t flags = SRCheck[opcode >> 12](opcode);
+    uint32_t flags = SR_FlagsAt(opcode, insn_stream);
     mask = flags & 0x1f;
     tmp_sets = flags & 0x1f;
     tmp_needs = (flags >> 16) & 0x1f;
@@ -927,6 +996,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
                 // Mark the flags which conditional jump needs by itself
                 needed |= mask & (SRCheck[opcode >> 12](opcode) >> 16);
 
+
                 if ((opcode & 0xff) == 0) {
                     branch_offset = (int16_t)BE16(insn_stream[1]);
                     insn_stream_2++;
@@ -961,7 +1031,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 
                     D(kprintf("[JIT]   %02d.1: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream));
 
-                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    uint32_t flags = SR_FlagsAt(opcode, insn_stream);
                     tmp_sets = flags & 0x1f;
                     tmp_needs = (flags >> 16) & 0x1f;
 
@@ -998,7 +1068,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 
                     D(kprintf("[JIT]   %02d.2: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream_2));
 
-                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    uint32_t flags = SR_FlagsAt(opcode, insn_stream_2);
                     tmp_sets = flags & 0x1f;
                     tmp_needs = (flags >> 16) & 0x1f;
 
@@ -1040,7 +1110,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
         opcode = BE16(*insn_stream);
         D(kprintf("[JIT]   %02d: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream));
 
-        uint32_t flags = SRCheck[opcode >> 12](opcode);
+        uint32_t flags = SR_FlagsAt(opcode, insn_stream);
         tmp_sets = flags & 0x1f;
         tmp_needs = (flags >> 16) & 0x1f;
 

@@ -18,6 +18,8 @@
 #include "DuffCopy.h"
 #include "EmuLogo.h"
 #include "EmuFeatures.h"
+#include "jit_levers.h"
+#include "OMMX.h"
 
 void _start();
 
@@ -153,7 +155,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
 #if SET_FEATURES_AT_RUNTIME
     if ((isar & 0x0f000000) == 0x02000000) {
-        Features.ARM_SUPPORTS_DIV = 1;
+        Features.ARM_SUPPORTS_DIV = 0;  /* DE10 A9 has NO HW divide: force the soft-divide path (QEMU-A7 reports DIV but the target does not) */
     }
     if ((isar & 0x0000000f) == 0x00000001) {
         Features.ARM_SUPPORTS_SWP = 1;
@@ -241,6 +243,13 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
                 len -= 12;
         }
     }
+    else
+    {
+        for (unsigned i = 0; i < 16; i++)
+        {
+            mmu_table[0xf20 + i] = (i << 20) | 0x3F000000 | 0x0c06;
+        }
+    }
 
     arm_flush_cache((intptr_t)mmu_table, sizeof(mmu_table));
 
@@ -305,7 +314,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         arm_flush_cache((intptr_t)mmu_table, sizeof(mmu_table));
 
         /* Load new pointer to the mmu table */
-        asm volatile("dsb; mcr p15,0,%0,c2,c0,0; dsb; isb"::"r"(((uint32_t)mmu_table_ptr & 0x000fffff) | (kernel_new_loc & 0xfff00000)));
+        asm volatile("dsb; mcr p15,0,%0,c2,c0,0; dsb; isb"::"r"(((uint32_t)mmu_table_ptr & 0x007fffff) | (kernel_new_loc & 0xfff00000)));
         /* Invalidate entire TLB */
         asm volatile("dsb; mcr p15,0,%0,c8,c7,0; dsb; isb"::"r"(0));
     }
@@ -319,6 +328,25 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
     display_logo();
 
+#ifdef CHIPSET_BACKEND
+    {
+        extern void init_vectors(void);
+        extern void ps_setup_protocol(void);
+        extern void ps_pulse_reset(void);
+
+        mmu_table[0x00B] = 0;   /* translation fault -> Data-Abort (guest doorbell) */
+        mmu_table[0x00D] = 0;
+        arm_flush_cache((intptr_t)mmu_table, sizeof(mmu_table));
+        asm volatile("dsb; mcr p15,0,%0,c8,c7,0; dsb; isb" :: "r"(0)); /* flush TLB */
+
+        init_vectors();         /* install ARMv7 vector table + VBAR + abort stack */
+        ps_setup_protocol();    /* clear the stub register file                    */
+        ps_pulse_reset();       /* assert reset: overlay=1                          */
+        kprintf("[BOOT] chipset seam armed: $BFxxxx + $DFxxxx trapped\n");
+    }
+#endif
+
+
     e = dt_find_node("/chosen");
     if (e)
     {
@@ -329,7 +357,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
 
         kprintf("[BOOT] Loading executable from %p-%p\n", image_start, image_end);
-        void *hunks = LoadHunkFile(image_start);
+        void *hunks = LoadHunkFile(image_start, (void*)(intptr_t)top_of_ram);
         start_emu((void *)((intptr_t)hunks + 4));
     }
 
@@ -490,7 +518,7 @@ uint8_t m68kcode[] = {
 
 void *m68kcodeptr = m68kcode;
 
-uint32_t data[128];
+static uint32_t data[128];  /* armhf-port: make static to avoid conflict with devicetree.c::data */
 
 void print_context(struct M68KState *m68k)
 {
@@ -546,7 +574,7 @@ void print_context(struct M68KState *m68k)
         } u;
         if (i==4)
             printf("\n");
-        u.d = m68k->FP[i];
+        u.d = m68k->FP[i].d;
         printf("    FP%d = %08x%08x", i, u.u[0], u.u[1]);
     }
     printf("\n");
@@ -569,18 +597,156 @@ uint8_t *chunky; //[DATA_SIZE];
 
 uint32_t last_PC = 0xffffffff;
 
+/* armhf-port: glue.c defines __m68k_state and M68K_SetStatePtr */
+#ifndef __aarch64__
+extern void M68K_SetStatePtr(struct M68KState *s);
+#endif
+
+#ifdef CHIPSET_BACKEND
+extern int  chipset_pending_ipl(void);
+extern void chipset_ack_ipl(int level);
+
+static void take_m68k_interrupt(struct M68KState *m68k, int level)
+{
+    uint32_t vbr = BE32(m68k->VBR);
+    uint32_t handler = BE32(*(volatile uint32_t *)(vbr + 0x60 + level * 4));
+    if (handler == 0) {
+        kprintf("[JIT:INT] *** level %d autovector is 0 (VBR=%08x) — interrupt NOT taken ***\n",
+                level, vbr);
+        return;
+    }
+
+    uint16_t sr = BE16(m68k->SR);
+    uint32_t pc = BE32(m68k->PC);
+
+    if (!(sr & SR_S)) {
+        m68k->USP.u32  = m68k->A[7].u32;
+        m68k->A[7].u32 = m68k->ISP.u32;
+    } else if (sr & SR_M) {
+        m68k->MSP.u32  = m68k->A[7].u32;
+        m68k->A[7].u32 = m68k->ISP.u32;
+    }
+
+    uint32_t sp = BE32(m68k->A[7].u32);
+
+    sp -= 2; *(volatile uint16_t *)sp = BE16((uint16_t)(0x60 + level * 4));   /* format 0 | autovector offset */
+    sp -= 4; *(volatile uint32_t *)sp = BE32(pc);
+    sp -= 2; *(volatile uint16_t *)sp = BE16(sr);
+    m68k->A[7].u32 = BE32(sp);
+
+    uint16_t newsr = (uint16_t)((((sr & ~SR_IPL) | (level << 8)) | SR_S) & ~(SR_T0 | SR_T1 | SR_M));
+    m68k->SR = BE16(newsr);
+
+    m68k->PC = BE32(handler);
+
+    m68k->STOP_REQ = 0;
+
+    static int int_trace = 4;
+    if (int_trace > 0)
+        kprintf("[JIT:INT] IPL=%d: frame@%08x savedPC=%08x savedSR=%04x -> handler=%08x newSR=%04x%s\n",
+                level, sp, pc, sr, handler, newsr,
+                (--int_trace == 0) ? " (further IPL traces silenced; -DEMU68_INT_TRACE for all)" : "");
+}
+
+#ifdef EMU68_CPU040
+extern int CpuModel;
+#endif
+void m68k_do_rte(struct M68KState *m68k)
+{
+    uint32_t sp = BE32(m68k->A[7].u32);
+    uint16_t sr = BE16(*(volatile uint16_t *)sp);
+    uint32_t pc = BE32(*(volatile uint32_t *)(sp + 2));
+
+    {
+        uint16_t fmtword = BE16(*(volatile uint16_t *)(sp + 6));
+        switch (fmtword >> 12)
+        {
+            case 0:  sp += 8;  break;
+            case 1:  sp += 8;  break;
+            case 2:
+            case 3:  sp += 12; break;
+            case 4:  sp += 16; break;
+#ifdef EMU68_CPU040
+            case 7:     /* under the 020 presentation a $7 frame is refused (the default below) */
+                if (CPUMODEL_HAS_040_REGS(CpuModel)) { sp += 60; break; }
+                __attribute__((fallthrough));
+#endif
+            default:
+                kprintf("[JIT:RTE] *** UNKNOWN exception frame format %d (word %04x) at SSP %08x "
+                        "-- refusing to pop ***\n", fmtword >> 12, fmtword, sp);
+                m68k->PC = 0;
+                return;
+        }
+    }
+
+    m68k->SR = BE16(sr);
+    if (!(sr & SR_S)) {                 /* returning to user mode    */
+        m68k->ISP.u32  = BE32(sp);
+        m68k->A[7].u32 = m68k->USP.u32;
+    } else if (sr & SR_M) {             /* returning to master mode  */
+        m68k->ISP.u32  = BE32(sp);
+        m68k->A[7].u32 = m68k->MSP.u32;
+    } else {
+        m68k->A[7].u32 = BE32(sp);
+    }
+    m68k->PC = BE32(pc);
+    ommx_banks_switch_point(m68k, 0);
+}
+
+void m68k_do_move_to_sr(struct M68KState *m68k)
+{
+    uint16_t oldsr = BE16(m68k->SR);
+    uint16_t newsr = (uint16_t)(m68k->MOVE2SR_VAL & 0xf71f);
+    int old_s = (oldsr & SR_S) != 0, old_m = (oldsr & SR_M) != 0;
+    int new_s = (newsr & SR_S) != 0, new_m = (newsr & SR_M) != 0;
+    if (old_s != new_s || old_m != new_m) {
+        if      (!old_s) m68k->USP.u32 = m68k->A[7].u32;   /* save the current stack */
+        else if ( old_m) m68k->MSP.u32 = m68k->A[7].u32;
+        else             m68k->ISP.u32 = m68k->A[7].u32;
+        if      (!new_s) m68k->A[7].u32 = m68k->USP.u32;   /* load the new active stack */
+        else if ( new_m) m68k->A[7].u32 = m68k->MSP.u32;
+        else             m68k->A[7].u32 = m68k->ISP.u32;
+    }
+    m68k->SR = BE16(newsr);
+    m68k->MOVE2SR_REQ = 0;
+    if (old_s && !new_s)
+        ommx_banks_switch_point(m68k, 1);
+}
+#endif
+
+int ommx_guest_read32(uint32_t a, uint32_t *v)
+{
+    if (a > 0x3EFFFFFCu) return 0;
+    *v = BE32(*(volatile uint32_t *)(uintptr_t)a);
+    return 1;
+}
+
 void start_emu(void *addr)
 {
 #ifndef __aarch64__
 
     register struct M68KState * m68k asm("fp");
+    struct M68KState __m68k;
+    bzero(&__m68k, sizeof(__m68k));
+    M68K_SetStatePtr(&__m68k);  /* must be before M68K_InitializeCache() */
     M68K_InitializeCache();
+#ifdef EMU68_A3D
+    {
+        extern void a3d_fw_boot(const char *args);
+        const char *args = 0;
+        of_node_t *ch = dt_find_node("/chosen");
+        of_property_t *ba = ch ? dt_find_property(ch, "bootargs") : 0;
+        if (ba && ba->op_length > 0)
+            args = (const char *)ba->op_value;
+        kprintf("[A3D] bootargs: \"%s\"\n", args ? args : "");
+        a3d_fw_boot(args);
+    }
+#endif
     uint64_t t1=0, t2=0;
 
     void (*arm_code)(); //(struct M68KState *ctx);
 
     struct M68KTranslationUnit * unit = (void*)0;
-    struct M68KState __m68k;
 
     asm volatile ("mov %0, %1":"=r"(m68k):"r"(&__m68k));
 
@@ -604,6 +770,12 @@ for (int i=1; i < 2; i++)
 
     *(uint32_t*)(BE32(m68k->A[7].u32)) = 0;
 
+#ifdef CHIPSET_BACKEND
+    m68k->SR = BE16(SR_S);
+    m68k->ISP.u32 = m68k->A[7].u32;
+#endif
+
+
     printf("[JIT] Let it go...\n");
     uint64_t ctx_count = 0;
 
@@ -612,12 +784,64 @@ for (int i=1; i < 2; i++)
     do {
         if (last_PC != (uint32_t)m68k->PC)
         {
-            unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k->PC)));
+            { extern struct M68KTranslationUnit *M68K_GetTranslationUnit_e(uint16_t *);
+              unit = M68K_GetTranslationUnit_e((uint16_t *)(BE32((uint32_t)m68k->PC))); }
+            { extern struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *);
+              uint32_t _pc = BE32((uint32_t)m68k->PC);
+              if (unit && !(_pc >= 0x00F80000u && _pc < 0x01000000u) && M68K_VerifyUnit(unit) == NULL)
+                  unit = M68K_GetTranslationUnit((uint16_t *)_pc); }
             last_PC = (uint32_t)m68k->PC;
+#ifdef EMU68_BLOCKSPIN
+            for (volatile int _spin = 0; _spin < (EMU68_BLOCKSPIN); _spin++) { asm volatile("" ::: "memory"); }
+#endif
         }
 
+
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
-        arm_code(m68k);
+        m68k->LOOP_BUDGET = (uint32_t)g_ipl_poll_interval * M68K_LOOP_BUDGET_PER_POLL;
+        ipl_poll_countdown = g_ipl_poll_interval;
+#ifdef CHIPSET_BACKEND
+        if (__builtin_expect(m68k->STOP_REQ == 0, 1))
+#endif
+            arm_code(m68k);
+
+#ifdef EMU68_A3D
+        if (m68k->ONCALL_REQ) {
+            extern void a3d_oncall_trap(struct M68KState *m);
+            a3d_oncall_trap(m68k);
+        }
+#endif
+
+#ifdef CHIPSET_BACKEND
+        {
+            static uint32_t a7_prev_pc, a7_trips;
+            uint32_t a7v = BE32(m68k->A[7].u32);
+            if (__builtin_expect(a7v < 0x1000u, 0)) {
+                volatile uint32_t *w = (volatile uint32_t *)0x286DC7C0u;
+                if (a7_trips == 0) {
+                    w[0] = BE32((uint32_t)m68k->PC);
+                    w[1] = a7_prev_pc;
+                    w[2] = a7v;
+                    w[3] = BE32(m68k->USP.u32);
+                    w[4] = BE16(m68k->SR);
+                }
+                a7_trips++;
+                w[5] = a7_trips;
+            }
+            a7_prev_pc = BE32((uint32_t)m68k->PC);
+        }
+        if (m68k->PC != 0) {
+            int level = chipset_pending_ipl();
+            if (level > 0) {
+                int mask = (BE16(m68k->SR) >> 8) & 7;
+                if (level == 7 || level > mask) {
+                    take_m68k_interrupt(m68k, level);
+                    chipset_ack_ipl(level);
+                    last_PC = 0xffffffff;   /* force re-lookup at the handler PC */
+                }
+            }
+        }
+#endif
 
     } while(m68k->PC != 0);
 

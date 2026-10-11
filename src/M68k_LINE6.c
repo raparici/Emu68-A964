@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -10,7 +11,13 @@
 #include "config.h"
 #include "support.h"
 #include "M68k.h"
+#include "EmuFeatures.h"
 #include "RegisterAllocator.h"
+
+#if defined(EMU68_INNER_LOOP) && defined(EMU68_BCC_INLINE) && !defined(__aarch64__)
+extern uint16_t *g_xlat_unit_start;
+extern int       g_xlat_backedge_ok;
+#endif
 
 uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -65,7 +72,7 @@ uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
             *ptr++ = add_reg(tmp, REG_PC, tmp, LSL, 0);
 #else
-            *ptr++ = add_reg(tmp, REG_PC, tmp, 0);
+            *ptr++ = add_reg(tmp, REG_PC, tmp, LSL, 0);
 #endif
         }
 
@@ -109,13 +116,13 @@ uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *ptr++ = movw_immed_u16(reg, abs_off & 0xffff);
         if ((abs_off >> 16) & 0xffff)
             *ptr++ = movt_immed_u16(reg, abs_off >> 16);
-        *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+        *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
     }
 #endif
     RA_FreeARMRegister(&ptr, reg);
 
-    /* If branch is done within +- 4KB, try to inline it instead of breaking up the translation unit */
-    if (bra_off >= -EMU68_BRANCH_INLINE_DISTANCE && bra_off <= EMU68_BRANCH_INLINE_DISTANCE) {
+    if (EMU68_INLINE_ALLOWED(*m68k_ptr) && (bra_off >= -(int32_t)Options.M68K_INLINE_RANGE
+                                            && bra_off <= (int32_t)Options.M68K_INLINE_RANGE)) {
         if (bsr) {
             M68K_PushReturnAddress(*m68k_ptr);
         }
@@ -200,12 +207,7 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = movt_cc_immed_u16(success_condition, reg, (branch_offset >> 16) & 0xffff);
         *ptr++ = add_cc_reg(success_condition, REG_PC, REG_PC, reg, 0);
     }
-
-    /* Next jump to skip the condition - invert bit 0 of the condition code here! */
-    tmpptr = ptr;
-
-    *ptr++ = 0; // Here a b_cc(success_condition ^ 1, 2); will be put, but with right offset
-
+    (void)tmpptr; /* tmpptr is only used in the aarch64 path above */
 #endif
     branch_target += branch_offset - local_pc_off;
 
@@ -244,7 +246,7 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         pc_no = REG_PC;
     }
     success_condition = EMIT_TestCondition(&ptr, m68k_condition);
-    *ptr++ = csel(REG_PC, pc_yes, pc_no, success_condition);
+    EMIT_csel(&ptr, REG_PC, pc_yes, pc_no, success_condition);
     RA_FreeARMRegister(&ptr, pc_yes);
     RA_FreeARMRegister(&ptr, pc_no);
     tmpptr = ptr;
@@ -265,17 +267,15 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #endif
 #else
     if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
-        *ptr++ = add_immed(REG_PC, REG_PC, local_pc_off_16);
+        *ptr++ = add_cc_immed(success_condition ^ 1, REG_PC, REG_PC, local_pc_off_16);
     else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
-        *ptr++ = sub_immed(REG_PC, REG_PC, -local_pc_off_16);
+        *ptr++ = sub_cc_immed(success_condition ^ 1, REG_PC, REG_PC, -local_pc_off_16);
     else if (local_pc_off_16 != 0) {
-        *ptr++ = movw_immed_u16(reg, local_pc_off_16);
+        *ptr++ = movw_cc_immed_u16(success_condition ^ 1, reg, local_pc_off_16);
         if ((local_pc_off_16 >> 16) & 0xffff)
-            *ptr++ = movt_immed_u16(reg, local_pc_off_16 >> 16);
-        *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+            *ptr++ = movt_cc_immed_u16(success_condition ^ 1, reg, local_pc_off_16 >> 16);
+        *ptr++ = add_cc_reg(success_condition ^ 1, REG_PC, REG_PC, reg, 0);
     }
-    /* Now we now how far we jump. put the branch in place */
-    *tmpptr = b_cc(success_condition, ptr-tmpptr-2);
 #endif
 
 #if EMU68_DEF_BRANCH_AUTO
@@ -284,6 +284,10 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         ((intptr_t)*m68k_ptr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
     )
         *m68k_ptr = (uint16_t *)branch_target;
+#if defined(EMU68_INNER_LOOP) && defined(EMU68_BCC_INLINE) && !defined(__aarch64__)
+    else if (g_xlat_backedge_ok && branch_target == (intptr_t)g_xlat_unit_start)
+        *m68k_ptr = (uint16_t *)branch_target;
+#endif
 #else
 #if EMU68_DEF_BRANCH_TAKEN
     *m68k_ptr = (uint16_t *)branch_target;
@@ -291,8 +295,15 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #endif
 
     RA_FreeARMRegister(&ptr, reg);
+#if defined(EMU68_BCC_INLINE) && !defined(__aarch64__)
+    tmpptr = ptr;
+    *ptr++ = b_cc((*m68k_ptr == (uint16_t *)branch_target) ? success_condition
+                                                           : (success_condition ^ 1), 1);
     *ptr++ = (uint32_t)(uintptr_t)tmpptr;
     *ptr++ = 1;
+#else
+    *ptr++ = 0;
+#endif
     *ptr++ = branch_target;
     *ptr++ = INSN_TO_LE(0xfffffffe);
 

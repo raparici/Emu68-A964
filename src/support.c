@@ -550,36 +550,38 @@ void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
 
 void arm_flush_cache(uintptr_t addr, uint32_t length)
 {
-        length = (length + 31) & ~31;
-        while (length)
+        uintptr_t top = addr + length;
+        addr &= ~(uintptr_t)31;
+        while (addr < top)
         {
                 __asm__ __volatile__("mcr p15, 0, %0, c7, c14, 1"::"r"(addr));
                 addr += 32;
-                length -= 32;
         }
         __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
 }
 
 void arm_icache_invalidate(uintptr_t addr, uint32_t length)
 {
-    length = (length + 31) & ~31;
-        while (length)
+    uintptr_t top = addr + length;
+        addr &= ~(uintptr_t)31;
+        while (addr < top)
         {
                 __asm__ __volatile__("mcr p15, 0, %0, c7, c5, 1"::"r"(addr));
                 addr += 32;
-                length -= 32;
         }
-        __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
+        __asm__ __volatile__("mcr p15, 0, %0, c7, c5, 6"::"r"(0));
+        __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));   /* DSB */
+        __asm__ __volatile__("isb");
 }
 
 void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
 {
-    length = (length + 31) & ~31;
-        while (length)
+    uintptr_t top = addr + length;
+        addr &= ~(uintptr_t)31;
+        while (addr < top)
         {
                 __asm__ __volatile__("mcr p15, 0, %0, c7, c6, 1"::"r"(addr));
                 addr += 32;
-                length -= 32;
         }
         __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
 }
@@ -682,7 +684,7 @@ void bzero(void *ptr, size_t sz)
             *p++ = 0;
 }
 
-void *memset(void *ptr, int fill, size_t sz)
+void *(memset)(void *ptr, int fill, size_t sz)
 {
     uint8_t *p = ptr;
     if (p)
@@ -691,7 +693,7 @@ void *memset(void *ptr, int fill, size_t sz)
     return ptr;
 }
 
-void *memcpy(void *dst, const void *src, size_t sz)
+void *(memcpy)(void *dst, const void *src, size_t sz)
 {
     uint8_t *d = dst;
     const uint8_t *s = src;
@@ -951,4 +953,15 @@ char *strcat(char *s1, const char *s2)
 {
     strcpy(s1 + strlen(s1), s2);
     return s1;
+}
+
+/* strrchr: find last occurrence of c in s. Needed by capstone on bare-metal. */
+char *strrchr(const char *s, int c)
+{
+    const char *last = NULL;
+    do {
+        if ((unsigned char)*s == (unsigned char)c)
+            last = s;
+    } while (*s++);
+    return (char *)last;
 }

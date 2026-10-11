@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -10,6 +11,19 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "config.h"
+
+extern int DbfSlowdown;
+
+#if defined(EMU68_INNER_LOOP) && defined(EMU68_BCC_INLINE) && !defined(__aarch64__)
+extern uint16_t *g_xlat_unit_start;
+extern int       g_xlat_backedge_ok;
+#define DBCC_CLOSES_UNIT_LOOP(target)  (g_xlat_backedge_ok && (uintptr_t)(target) == (uintptr_t)g_xlat_unit_start)
+#define EMU68_DBCC_CLOSE 1
+#else
+#define EMU68_DBCC_CLOSE 0
+#endif
+#define DBCC_LATE_ALLOC 0
 
 uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -40,7 +54,7 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = mov_immed_u16(tmp, data << 8, 1);
                 *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
-                *ptr++ = bfxil(dest, tmp, 24, 8);
+                EMIT_bfxil(&ptr, dest, tmp, 24, 8, REG_EMIT_TMP);
 #else
                 *ptr++ = lsl_immed(tmp, dest, 24);
                 *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
@@ -55,7 +69,7 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = mov_immed_u16(tmp, data, 1);
                 *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
-                *ptr++ = bfxil(dest, tmp, 16, 16);
+                EMIT_bfxil(&ptr, dest, tmp, 16, 16, REG_EMIT_TMP);
 #else
                 *ptr++ = lsl_immed(tmp, dest, 16);
                 *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
@@ -78,7 +92,7 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             update_cc = 0;
 
-            *ptr++ = adds_immed(dest, dest, data);
+            *ptr++ = add_immed(dest, dest, data);
         }
     }
     else
@@ -248,7 +262,7 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = lsl(tmp2, dest, 24);
                 *ptr++ = mov_immed_u16(tmp, data << 8, 1);
                 *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
-                *ptr++ = bfxil(dest, tmp, 24, 8);
+                EMIT_bfxil(&ptr, dest, tmp, 24, 8, REG_EMIT_TMP);
 #else
                 *ptr++ = lsl_immed(tmp, dest, 24);
                 *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
@@ -264,7 +278,7 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = lsl(tmp2, dest, 16);
                 *ptr++ = mov_immed_u16(tmp, data, 1);
                 *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
-                *ptr++ = bfxil(dest, tmp, 16, 16);
+                EMIT_bfxil(&ptr, dest, tmp, 16, 16, REG_EMIT_TMP);
 #else
                 *ptr++ = lsl_immed(tmp, dest, 16);
                 *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
@@ -455,7 +469,7 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
             *ptr++ = orr_immed(dest, dest, 8, 0);
 #else
-            *ptr++ = orr_immed(dest, dest, 0xff);
+            *ptr++ = _orr_val(dest, dest, 0xff);
 #endif
         }
         else
@@ -468,7 +482,7 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             *ptr++ = orr_immed(c_yes, dest, 8, 0);
             *ptr++ = bic_immed(c_no, dest, 8, 0);
-            *ptr++ = csel(dest, c_yes, c_no, arm_condition);
+            EMIT_csel(&ptr, dest, c_yes, c_no, arm_condition);
 
             RA_FreeARMRegister(&ptr, c_yes);
             RA_FreeARMRegister(&ptr, c_no);
@@ -497,7 +511,7 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
             *ptr++ = mov_immed_u16(dest, 0xff, 0);
 #else
-            *ptr++ = orr_immed(tmp, tmp, 0xff);
+            *ptr++ = _orr_val(tmp, tmp, 0xff);
 #endif
         }
         else
@@ -509,7 +523,7 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             *ptr++ = orr_immed(c_yes, dest, 8, 0);
             *ptr++ = bic_immed(c_no, dest, 8, 0);
-            *ptr++ = csel(dest, c_yes, c_no, arm_condition);
+            EMIT_csel(&ptr, dest, c_yes, c_no, arm_condition);
 
             RA_FreeARMRegister(&ptr, c_yes);
             RA_FreeARMRegister(&ptr, c_no);
@@ -519,6 +533,10 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #endif
         }
 
+        /* armhf: value was computed in tmp, but aarch64 path uses dest; unify here */
+#ifndef __aarch64__
+        *ptr++ = mov_reg(dest, tmp);
+#endif
         ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
 
         RA_FreeARMRegister(&ptr, tmp);
@@ -572,14 +590,27 @@ uint32_t *EMIT_TRAPcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         tmpptr = ptr;
         *ptr++ = b_cc(arm_condition ^ 1, 0);
+#ifdef __aarch64__
         ptr = EMIT_Exception(ptr, VECTOR_TRAPcc, 2, source);
         *tmpptr = b_cc(arm_condition ^ 1, ptr - tmpptr);
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
         *ptr++ = 1;
         *ptr++ = 0;
         *ptr++ = INSN_TO_LE(0xfffffffe);
+#else
+        {
+            struct RA_Snapshot ra_snap;
+            uint32_t *trapcc_pop_loc = NULL;
+            RA_SaveState(&ra_snap);
+            ptr = EMIT_Exception(ptr, VECTOR_TRAPcc, 2, source);
+            ptr = EMIT_ExceptionUnitExit(ptr, &trapcc_pop_loc);
+            *tmpptr = b_cc(arm_condition ^ 1, ptr - tmpptr);
+            RA_RestoreState(&ra_snap);
+            ptr = EMIT_ExceptionUnitExitTail(ptr, trapcc_pop_loc);
+        }
+#endif
     }
-    
+
     return ptr;
 }
 
@@ -592,6 +623,9 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint32_t *branch_2 = NULL;
     int32_t branch_offset = 2 + (int16_t)BE16(*(*m68k_ptr)++);
     uint16_t *bra_rel_ptr = *m68k_ptr - 2;
+#if EMU68_DBCC_CLOSE
+    const int close_loop = DBCC_CLOSES_UNIT_LOOP((uintptr_t)bra_rel_ptr + branch_offset);
+#endif
 
     //*ptr++ = b(0);
 
@@ -606,6 +640,18 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t c_false = RA_AllocARMRegister(&ptr);
         int8_t off8 = 0;
         int32_t off = 4;
+
+        if (DbfSlowdown && m68k_condition == M_CC_F && branch_offset == 0
+            && (uintptr_t)*m68k_ptr < EMU68_SLOWDOWN_ADDR_MAX)
+        {
+            uint32_t *slow_start = ptr;
+            *ptr++ = mov_immed_u8(c_true, 0);                 /* c_true := 0 (the address)      */
+            *ptr++ = ldrb_offset(c_true, c_false, 0);         /* c_false := [c_true]  x3        */
+            *ptr++ = ldrb_offset(c_true, c_false, 0);         /*   (BASE, TARGET): three chip   */
+            *ptr++ = ldrb_offset(c_true, c_false, 0);         /*   byte reads from address 0    */
+            (void)slow_start;
+        }
+
         ptr = EMIT_GetOffsetPC(ptr, &off8);
         off += off8;
         ptr = EMIT_ResetOffsetPC(ptr);
@@ -614,6 +660,7 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         off = branch_offset + off8;
 
+#if defined(__aarch64__)
         if (off > -4096 && off < 0)
         {
             *ptr++ = sub_immed(c_false, REG_PC, -off);
@@ -622,6 +669,16 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             *ptr++ = add_immed(c_false, REG_PC, off);
         }
+#else
+        if (off > -256 && off < 0)
+        {
+            *ptr++ = sub_immed(c_false, REG_PC, -off);
+        }
+        else if (off > 0 && off < 256)
+        {
+            *ptr++ = add_immed(c_false, REG_PC, off);
+        }
+#endif
         else if (off != 0)
         {
             uint8_t reg = RA_AllocARMRegister(&ptr);
@@ -634,6 +691,10 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = mov_reg(c_false, REG_PC);
         }
 
+#if !DBCC_LATE_ALLOC
+        uint8_t reg = RA_AllocARMRegister(&ptr);
+#endif
+
         /* If condition was not false check the condition and eventually break the loop */
         if (m68k_condition != M_CC_F)
         {
@@ -641,18 +702,20 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             /* Adjust PC, negated CC is loop condition, CC is loop break condition */
 #ifdef __aarch64__
-            *ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
+            EMIT_csel(&ptr, REG_PC, c_true, c_false, arm_condition);
 #else
-            *ptr++ = add_cc_immed(arm_condition^1, REG_PC, REG_PC, 2);
-            *ptr++ = add_cc_immed(arm_condition, REG_PC, REG_PC, 4);
+            *ptr++ = mov_cc_reg(arm_condition^1, REG_PC, c_false);
+            *ptr++ = mov_cc_reg(arm_condition, REG_PC, c_true);
 #endif
             /* conditionally exit loop */
             branch_1 = ptr;
             *ptr++ = b_cc(arm_condition, 0);
         }
 
-        /* Copy register to temporary, shift 16 bits left */
+#if DBCC_LATE_ALLOC
         uint8_t reg = RA_AllocARMRegister(&ptr);
+#endif
+        /* Copy register to temporary, shift 16 bits left */
 #ifdef __aarch64__
         *ptr++ = uxth(reg, counter_reg);
 #else
@@ -673,20 +736,16 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         /* If counter was 0xffff (temprary reg 0xffff0000) break the loop */
 #ifdef __aarch64__
-        *ptr++ = csel(REG_PC, c_true, c_false, A64_CC_MI);
+        EMIT_csel(&ptr, REG_PC, c_true, c_false, A64_CC_MI);
         branch_2 = ptr;
         *ptr++ = b_cc(A64_CC_PL, 3);
         if (branch_1) {
-#ifdef __aarch64__
             *branch_1 = b_cc(arm_condition, ptr - branch_1);
-#else
-            *branch_1 = INSN_TO_LE(INSN_TO_LE(*branch_1) + ((int)(branch_2 - branch_1) << 5));
-#endif
         }
 #else
-        *ptr++ = add_cc_immed(ARM_CC_EQ, REG_PC, REG_PC, 4);
-        branch_2 = ptr;
-        *ptr++ = b_cc(ARM_CC_EQ, 2);
+        /* default: counter still valid, take the backward branch (loop) */
+        *ptr++ = mov_reg(REG_PC, c_false);
+        *ptr++ = mov_cc_reg(ARM_CC_EQ, REG_PC, c_true);
 #endif
 
 #if 0
@@ -696,17 +755,47 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
         *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
 #else
-        *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+        *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
 #endif
 #endif
         RA_FreeARMRegister(&ptr, reg);
 
+#if EMU68_DBCC_CLOSE
+        if (close_loop)
+        {
+            uint32_t *skip = ptr;
+            *ptr++ = b_cc(ARM_CC_NE, 1);                     /* placeholder: the handler adds the epilogue length */
+            if (branch_1)
+                *branch_1 = b_cc(arm_condition, ptr - branch_1);   /* -> the exit epilogue's first word */
+            *m68k_ptr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
+            *ptr++ = (uint32_t)(uintptr_t)skip;              /* [mod_ptr][cnt][target][marker], as EMIT_Bcc */
+            *ptr++ = 1;
+            *ptr++ = (uint32_t)((uintptr_t)bra_rel_ptr + branch_offset);
+            *ptr++ = INSN_TO_LE(0xfffffffe);
+            RA_FreeARMRegister(&ptr, c_true);
+            RA_FreeARMRegister(&ptr, c_false);
+            RA_FreeARMRegister(&ptr, counter_reg);
+            return ptr;
+        }
+#endif
+
+#ifndef __aarch64__
+        /* armhf: fix up branch_1 (condition exit) to jump to epilogue here */
+        if (branch_1)
+            *branch_1 = b_cc(arm_condition, ptr - branch_1);
+#endif
+#ifdef __aarch64__
         *branch_2 = b_cc(A64_CC_PL, ptr - branch_2);
-        
+#endif
+
         *m68k_ptr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
 
+#ifdef __aarch64__
         *ptr++ = (uint32_t)(uintptr_t)branch_2;
         *ptr++ = 1;
+#else
+        *ptr++ = 0;
+#endif
         *ptr++ = 0;
         *ptr++ = INSN_TO_LE(0xfffffffe);
         *ptr++ = INSN_TO_LE(0xfffffff1);

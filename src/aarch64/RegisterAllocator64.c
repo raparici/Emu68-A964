@@ -21,6 +21,15 @@ void RA_ResetFPUAllocator()
     fpu_allocstate = 0;
 }
 
+uint8_t RA_MapOMMXRegister(uint32_t **arm_stream, uint8_t e_reg)         { (void)arm_stream; (void)e_reg; return 0xff; }
+uint8_t RA_MapOMMXRegisterForWrite(uint32_t **arm_stream, uint8_t e_reg) { (void)arm_stream; (void)e_reg; return 0xff; }
+void    RA_SetDirtyOMMXRegister(uint32_t **arm_stream, uint8_t e_reg)    { (void)arm_stream; (void)e_reg; }
+void    RA_StoreDirtyOMMXRegs(uint32_t **arm_stream)                     { (void)arm_stream; }
+void    RA_FlushOMMXRegs(uint32_t **arm_stream)                          { (void)arm_stream; }
+void    RA_ResetOMMXAllocator(void)                                      { }
+int     RA_OMMXBankLive(void)                                            { return 0; }
+uint8_t RA_AllocFPURegisterPair(uint32_t **arm_stream)                  { (void)arm_stream; return 0xff; }
+
 uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
 {
     (void)arm_stream;

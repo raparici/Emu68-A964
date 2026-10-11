@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -10,6 +11,18 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+
+static inline uint32_t *emit_flags_nz_from_shifted(uint32_t *ptr, uint8_t reg, uint8_t shift)
+{
+#ifdef __aarch64__
+    *ptr++ = adds_reg(31, 31, reg, LSL, shift);
+#else
+    uint8_t nzr = RA_AllocARMRegister(&ptr);
+    *ptr++ = lsls_immed(nzr, reg, shift);
+    RA_FreeARMRegister(&ptr, nzr);
+#endif
+    return ptr;
+}
 
 static uint32_t *EMIT_CMPA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 __attribute__((alias("EMIT_CMPA_reg")));
@@ -37,9 +50,9 @@ static uint32_t *EMIT_CMPA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = cmp_reg(dst, src, LSL, 0);
 #else
     if (size == 2)
-        *ptr++ = sxth(src, src, 0);
+        *ptr++ = sxth(src, src);
 
-    *ptr++ = cmp_reg(dst, src);
+    *ptr++ = cmp_reg(dst, src, LSL, 0);
 #endif
 
     RA_FreeARMRegister(&ptr, src);
@@ -264,7 +277,7 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         case 2:
             tmp = RA_AllocARMRegister(&ptr);
             *ptr++ = lsl_immed(tmp, src, 16);
-            *ptr++ = eors_reg(tmp, src, dest, 16);
+            *ptr++ = eors_reg(tmp, tmp, dest, 16);
             *ptr++ = lsr_immed(tmp, tmp, 16);
             *ptr++ = bfi(dest, tmp, 0, 16);
             RA_FreeARMRegister(&ptr, tmp);
@@ -272,7 +285,7 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         case 1:
             tmp = RA_AllocARMRegister(&ptr);
             *ptr++ = lsl_immed(tmp, src, 24);
-            *ptr++ = eors_reg(tmp, src, dest, 24);
+            *ptr++ = eors_reg(tmp, tmp, dest, 24);
             *ptr++ = lsr_immed(tmp, tmp, 24);
             *ptr++ = bfi(dest, tmp, 0, 8);
             RA_FreeARMRegister(&ptr, tmp);
@@ -391,10 +404,10 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = cmn_reg(31, test_register, LSL, 0);
                 break;
             case 2:
-                *ptr++ = cmn_reg(31, test_register, LSL, 16);
+                ptr = emit_flags_nz_from_shifted(ptr, test_register, 16);
                 break;
             case 1:
-                *ptr++ = cmn_reg(31, test_register, LSL, 24);
+                ptr = emit_flags_nz_from_shifted(ptr, test_register, 24);
                 break;
         }
 #endif

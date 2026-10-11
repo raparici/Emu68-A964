@@ -19,6 +19,9 @@
 
 #include <math.h>
 #include <stdint.h>
+#ifdef log2
+#undef log2
+#endif
 
 static const double
 ivln2hi = 1.44269504072144627571e+00, /* 0x3ff71547, 0x65200000 */

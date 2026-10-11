@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -10,6 +11,18 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+
+static inline uint32_t *emit_flags_nz_from_shifted(uint32_t *ptr, uint8_t reg, uint8_t shift)
+{
+#ifdef __aarch64__
+    *ptr++ = adds_reg(31, 31, reg, LSL, shift);
+#else
+    uint8_t nzr = RA_AllocARMRegister(&ptr);
+    *ptr++ = lsls_immed(nzr, reg, shift);
+    RA_FreeARMRegister(&ptr, nzr);
+#endif
+    return ptr;
+}
 
 uint32_t *EMIT_MULU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 uint32_t *EMIT_MULS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
@@ -58,17 +71,17 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             break;
 #else
         case 4:
-            *ptr++ = ands_reg(dest, dest, src, 0);
+            *ptr++ = ands_reg(dest, dest, src, LSL, 0);
             break;
         case 2:
             *ptr++ = lsl_immed(src, src, 16);
-            *ptr++ = ands_reg(src, src, dest, 16);
+            *ptr++ = ands_reg(src, src, dest, LSL, 16);
             *ptr++ = lsr_immed(src, src, 16);
             *ptr++ = bfi(dest, src, 0, 16);
             break;
         case 1:
             *ptr++ = lsl_immed(src, src, 24);
-            *ptr++ = ands_reg(src, src, dest, 24);
+            *ptr++ = ands_reg(src, src, dest, LSL, 24);
             *ptr++ = lsr_immed(src, src, 24);
             *ptr++ = bfi(dest, src, 0, 8);
             break;
@@ -107,7 +120,7 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 #ifdef __aarch64__
             *ptr++ = ands_reg(tmp, tmp, src, LSL, 0);
 #else
-            *ptr++ = ands_reg(tmp, tmp, src, 0);
+            *ptr++ = ands_reg(tmp, tmp, src, LSL, 0);
 #endif
             /* Store back */
             if (mode == 3)
@@ -131,7 +144,7 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = and_reg(tmp, tmp, src, LSL, 0);
 #else
             *ptr++ = lsl_immed(tmp, tmp, 16);
-            *ptr++ = ands_reg(tmp, tmp, src, 16);
+            *ptr++ = ands_reg(tmp, tmp, src, LSL, 16);
             *ptr++ = lsr_immed(tmp, tmp, 16);
 #endif
             /* Store back */
@@ -157,7 +170,7 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = and_reg(tmp, tmp, src, LSL, 0);
 #else
             *ptr++ = lsl_immed(tmp, tmp, 24);
-            *ptr++ = ands_reg(tmp, tmp, src, 24);
+            *ptr++ = ands_reg(tmp, tmp, src, LSL, 24);
             *ptr++ = lsr_immed(tmp, tmp, 24);
 #endif
             /* Store back */
@@ -183,10 +196,10 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         switch(size)
         {
             case 2:
-                *ptr++ = cmn_reg(31, test_register, LSL, 16);
+                ptr = emit_flags_nz_from_shifted(ptr, test_register, 16);
                 break;
             case 1:
-                *ptr++ = cmn_reg(31, test_register, LSL, 24);
+                ptr = emit_flags_nz_from_shifted(ptr, test_register, 24);
                 break;
         }
 #endif
@@ -278,7 +291,7 @@ static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
     // Add X
     *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
-    *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+    EMIT_csinc(&ptr, tmp_a, tmp_a, tmp_a, A64_CC_EQ);
 
     // Compute sum of high and low nibbles into tmp_b
     *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
@@ -376,7 +389,7 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
     // Add X
     *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
-    *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+    EMIT_csinc(&ptr, tmp_a, tmp_a, tmp_a, A64_CC_EQ);
 
     // Compute sum of high and low nibbles into tmp_b
     *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
@@ -425,9 +438,85 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     
     ptr = EMIT_AdvancePC(ptr, 2);
 #else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t cc = RA_ModifyCC(&ptr);
+
+    uint8_t tmp_a = RA_AllocARMRegister_NoFP(&ptr);
+    uint8_t tmp_b = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_c = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_d = RA_AllocARMRegister(&ptr);
+    uint8_t src   = RA_AllocARMRegister(&ptr);
+    uint8_t dst   = RA_AllocARMRegister(&ptr);
+
+    uint8_t an_src  = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+    uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+    RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+    /* Predecrement and fetch.  A7 moves by 2, never 1: the stack stays even. */
+    *ptr++ = ldrb_offset_preindex(an_src,  src, ((opcode & 7) == 7) ? -2 : -1);
+    *ptr++ = ldrb_offset_preindex(an_dest, dst, (((opcode >> 9) & 7) == 7) ? -2 : -1);
+
+    /* --- from here down this is EMIT_ABCD_reg verbatim, on src/dst instead of Dn --- */
+    *ptr++ = and_immed(tmp_a, src, 4, 0);
+    *ptr++ = and_immed(tmp_b, dst, 4, 0);
+
+    *ptr++ = and_immed(tmp_c, src, 4, 28);
+    *ptr++ = and_immed(tmp_d, dst, 4, 28);
+
+    *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+    *ptr++ = add_reg(tmp_c, tmp_c, tmp_d, LSL, 0);
+
+    /* Add X */
+    *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+    EMIT_csinc(&ptr, tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+
+    *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
+
+    /* lower nibble > 9 -> radix adjust */
+    *ptr++ = cmp_immed(tmp_a, 9);
+    *ptr++ = b_cc(A64_CC_LS, 2);
+    *ptr++ = add_immed(tmp_b, tmp_b, 6);
+
+    /* upper nibble carry */
+    *ptr++ = and_immed(tmp_d, tmp_b, 6, 28);
+    *ptr++ = cmp_immed(tmp_d, 0x90);
+    if (update_mask & SR_XC)
+    {
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = b_cc(A64_CC_LS, 3);
+        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_C);
+    }
+    else
+    {
+        *ptr++ = b_cc(A64_CC_LS, 2);
+    }
+    *ptr++ = add_immed(tmp_b, tmp_b, 0x60);
+    if (update_mask & SR_X)
+    {
+        *ptr++ = bfi(cc, cc, 4, 1);      /* C -> X */
+    }
+
+    /* The destination is MEMORY, and an_dest already points at it (pre-indexed). */
+    *ptr++ = strb_offset(an_dest, tmp_b, 0);
+
+    if (update_mask & SR_Z)
+    {
+        /* Z is only ever CLEARED by BCD ops - it stays set across a multi-byte chain. */
+        *ptr++ = ands_immed(31, tmp_b, 8, 0);
+        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Z);
+    }
+
+    RA_FreeARMRegister(&ptr, tmp_a);
+    RA_FreeARMRegister(&ptr, tmp_b);
+    RA_FreeARMRegister(&ptr, tmp_c);
+    RA_FreeARMRegister(&ptr, tmp_d);
+    RA_FreeARMRegister(&ptr, src);
+    RA_FreeARMRegister(&ptr, dst);
+
+    ptr = EMIT_AdvancePC(ptr, 2);
 #endif
 
     return ptr;

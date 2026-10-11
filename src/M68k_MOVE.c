@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -11,13 +12,24 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
+static inline uint32_t *emit_flags_nz_from_shifted(uint32_t *ptr, uint8_t reg, uint8_t shift)
+{
+#ifdef __aarch64__
+    *ptr++ = adds_reg(31, 31, reg, LSL, shift);
+#else
+    uint8_t nzr = RA_AllocARMRegister(&ptr);
+    *ptr++ = lsls_immed(nzr, reg, shift);
+    RA_FreeARMRegister(&ptr, nzr);
+#endif
+    return ptr;
+}
+
 uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     int8_t value = opcode & 0xff;
     uint8_t reg = (opcode >> 9) & 7;
-    uint8_t tmp_reg = RA_MapM68kRegisterForWrite(&ptr, reg);
     *insn_consumed = 1;
 
     if (opcode & 0x100) {
@@ -27,6 +39,8 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = INSN_TO_LE(0xffffffff);
         return ptr;
     }
+
+    uint8_t tmp_reg = RA_MapM68kRegisterForWrite(&ptr, reg);
 
     (*m68k_ptr)++;
 
@@ -124,10 +138,13 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             // Candidate found. Is next opcode of same kind and same -(An)?
             if (
                 (opcode2 & 0xf000) == 0x2000 &&          // move.l
-                (opcode2 & 0x0ff0) == (opcode & 0x0ff0)  // same dest reg, same mode?
+                (opcode2 & 0x0ff0) == (opcode & 0x0ff0) &&  // same dest reg, same mode?
+                (opcode  & 0xf) != (((opcode >> 9) & 7) + 8) &&
+                (opcode2 & 0xf) != (((opcode >> 9) & 7) + 8)
             )
             {
-                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
+                uint8_t addr_reg = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
+                RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
                 uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 0xf);
                 uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 0xf);
 
@@ -141,11 +158,11 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #ifdef __aarch64__
                     *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
 #else
-                    *ptr++ = cmp_immed(tmp_reg, 0);
+                    *ptr++ = cmp_immed(src_reg_2, 0);
 #endif
                 }
 
-                *ptr++ = stp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
+                EMIT_stp_preindex(&ptr, addr_reg, src_reg_2, src_reg_1, -8);
 
                 tmp_reg = src_reg_2;
             
@@ -162,10 +179,13 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             // Candidate found. Is next opcode of same kind and same (An)+?
             if (
                 (opcode2 & 0xf000) == 0x2000 &&          // move.l
-                (opcode2 & 0x0ff0) == (opcode & 0x0ff0)  // same dest reg, same mode?
+                (opcode2 & 0x0ff0) == (opcode & 0x0ff0) &&  // same dest reg, same mode?
+                (opcode  & 0xf) != (((opcode >> 9) & 7) + 8) &&
+                (opcode2 & 0xf) != (((opcode >> 9) & 7) + 8)
             )
             {
-                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
+                uint8_t addr_reg = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
+                RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
                 uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 0xf);
                 uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 0xf);
                 
@@ -179,11 +199,11 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #ifdef __aarch64__
                     *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
 #else
-                    *ptr++ = cmp_immed(tmp_reg, 0);
+                    *ptr++ = cmp_immed(src_reg_2, 0);
 #endif
                 }
 
-                *ptr++ = stp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
+                EMIT_stp_postindex(&ptr, addr_reg, src_reg_1, src_reg_2, 8);
 
                 tmp_reg = src_reg_2;
             
@@ -201,10 +221,13 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             if (
                 (opcode2 & 0xf000) == 0x2000 &&             // move.l
                 (opcode2 & 0x01bf) == (opcode & 0x01bf) &&  // same src reg, same mode?
+                ((((opcode  >> 9) & 7) | ((opcode  >> 3) & 8)) != ((opcode & 7) + 8)) &&
+                ((((opcode2 >> 9) & 7) | ((opcode2 >> 3) & 8)) != ((opcode & 7) + 8)) &&
                 (opcode2 & 0x0e40) != (opcode & 0x0e40)     // Two different dest registers!
             )
             {
-                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
+                uint8_t addr_reg = RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
                 uint8_t dst_reg_1 = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 0x7) + ((opcode >> 3) & 8));
                 uint8_t dst_reg_2 = RA_MapM68kRegisterForWrite(&ptr, ((opcode2 >> 9) & 0x7) + ((opcode2 >> 3) & 8));
                 uint8_t is_movea2 = (opcode2 & 0x01c0) == 0x0040;
@@ -212,7 +235,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 /* Two subsequent register moves from (An)+ */
                 (*m68k_ptr)+=2;
                 
-                *ptr++ = ldp_postindex(addr_reg, dst_reg_1, dst_reg_2, 8);
+                EMIT_ldp_postindex(&ptr, addr_reg, dst_reg_1, dst_reg_2, 8);
 
                 if (!is_movea2) {
                     update_mask = M68K_GetSRMask(*m68k_ptr - 1);
@@ -220,7 +243,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #ifdef __aarch64__
                         *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
 #else
-                        *ptr++ = cmp_immed(tmp_reg, 0);
+                        *ptr++ = cmp_immed(dst_reg_2, 0);
 #endif
                         tmp_reg = dst_reg_2;
                     }
@@ -230,7 +253,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #ifdef __aarch64__
                         *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
 #else
-                        *ptr++ = cmp_immed(tmp_reg, 0);
+                        *ptr++ = cmp_immed(dst_reg_1, 0);
 #endif
                         tmp_reg = dst_reg_1;
                     }
@@ -252,10 +275,13 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             if (
                 (opcode2 & 0xf000) == 0x2000 &&             // move.l
                 (opcode2 & 0x01bf) == (opcode & 0x01bf) &&  // same src reg, same mode?
+                ((((opcode  >> 9) & 7) | ((opcode  >> 3) & 8)) != ((opcode & 7) + 8)) &&
+                ((((opcode2 >> 9) & 7) | ((opcode2 >> 3) & 8)) != ((opcode & 7) + 8)) &&
                 (opcode2 & 0x0e40) != (opcode & 0x0e40)     // Two different dest registers!
             )
             {
-                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
+                uint8_t addr_reg = RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
                 uint8_t dst_reg_1 = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 0x7) + ((opcode >> 3) & 8));
                 uint8_t dst_reg_2 = RA_MapM68kRegisterForWrite(&ptr, ((opcode2 >> 9) & 0x7) + ((opcode2 >> 3) & 8));
                 uint8_t is_movea2 = (opcode2 & 0x01c0) == 0x0040;
@@ -263,7 +289,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 /* Two subsequent register moves to (An)+ */
                 (*m68k_ptr)+=2;
 
-                *ptr++ = ldp_preindex(addr_reg, dst_reg_2, dst_reg_1, -8);
+                EMIT_ldp_preindex(&ptr, addr_reg, dst_reg_2, dst_reg_1, -8);
 
                 if (!is_movea2) {
                     update_mask = M68K_GetSRMask(*m68k_ptr - 1);
@@ -271,7 +297,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #ifdef __aarch64__
                         *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
 #else
-                        *ptr++ = cmp_immed(tmp_reg, 0);
+                        *ptr++ = cmp_immed(dst_reg_2, 0);
 #endif
                         tmp_reg = dst_reg_2;
                     }
@@ -281,7 +307,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #ifdef __aarch64__
                         *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
 #else
-                        *ptr++ = cmp_immed(tmp_reg, 0);
+                        *ptr++ = cmp_immed(dst_reg_1, 0);
 #endif
                         tmp_reg = dst_reg_1;
                     }
@@ -320,12 +346,14 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             if ((opcode & 0x38) != 0 && (opcode & 0x38) != 0x08) {
                 if ((tmp & 0x38) == 0) {
                     loaded_in_dest = 1;
-                    tmp_reg = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
+                    tmp_reg = RA_MapM68kRegister(&ptr, tmp & 7);
+                    RA_SetDirtyM68kRegister(&ptr, tmp & 7);
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 }
                 else if ((tmp & 0x38) == 0x08) {
                     loaded_in_dest = 1;
-                    tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
+                    tmp_reg = RA_MapM68kRegister(&ptr, 8 + (tmp & 7));
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (tmp & 7));
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 }
             }
@@ -347,7 +375,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #endif
         if (!loaded_in_dest)
         {
-            if (is_movea && size == 2) {
+            int src_is_dst_base = ((opcode & 0x38) == 0x08) &&
+                                  (((tmp & 0x38) == 0x18) || ((tmp & 0x38) == 0x20)) &&
+                                  ((opcode & 7) == (tmp & 7));
+            if ((is_movea && size == 2) || src_is_dst_base) {
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
             }
             else {
@@ -375,10 +406,13 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #ifdef __aarch64__
             *ptr++ = sxth(tmp_reg, tmp_reg);
 #else
-            *ptr++ = sxth(tmp_reg, tmp_reg, 0);
+            *ptr++ = sxth(tmp_reg, tmp_reg);
 #endif
             size = 4;
         }
+
+        if (!loaded_in_dest)
+            ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count);
 
         if (update_mask && !is_load_immediate)
         {
@@ -389,19 +423,23 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     *ptr++ = cmn_reg(31, tmp_reg, LSL, 0);
                     break;
                 case 2:
-                    *ptr++ = cmn_reg(31, tmp_reg, LSL, 16);
+                    ptr = emit_flags_nz_from_shifted(ptr, tmp_reg, 16);
                     break;
                 case 1:
-                    *ptr++ = cmn_reg(31, tmp_reg, LSL, 24);
+                    ptr = emit_flags_nz_from_shifted(ptr, tmp_reg, 24);
                     break;
             }
 #else
-            *ptr++ = cmp_immed(tmp_reg, 0);
+            if (size == 1 || size == 2) {
+                uint8_t nzt = RA_AllocARMRegister(&ptr);
+                *ptr++ = lsl_immed(nzt, tmp_reg, size == 1 ? 24 : 16);
+                *ptr++ = cmp_immed(nzt, 0);
+                RA_FreeARMRegister(&ptr, nzt);
+            } else {
+                *ptr++ = cmp_immed(tmp_reg, 0);
+            }
 #endif
         }
-
-        if (!loaded_in_dest)
-            ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
 
@@ -431,8 +469,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 }
 
                 if (tmp_immediate <= 0) {
-                    if ((update_mask & SR_N) && (tmp_immediate < 0))
-                        ptr = EMIT_SetFlags(ptr, cc, SR_N);
+                    if (tmp_immediate < 0) {
+                        if (update_mask & SR_N)
+                            ptr = EMIT_SetFlags(ptr, cc, SR_N);
+                    }
                     else if (update_mask & SR_Z)
                         ptr = EMIT_SetFlags(ptr, cc, SR_Z);
                 }

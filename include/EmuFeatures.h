@@ -16,6 +16,9 @@ typedef struct {
 typedef struct {
     uint32_t M68K_TRANSLATION_DEPTH;
     uint8_t M68K_ALLOW_UNALIGNED_FPU;
+    uint32_t M68K_CCR_SCAN_DEPTH;
+    uint32_t M68K_INLINE_RANGE;
+    uint32_t M68K_LOOP_COUNT;
 } options_t;
 
 #if SET_FEATURES_AT_RUNTIME
@@ -44,6 +47,9 @@ extern options_t Options;
 static const options_t Options = {
     EMU68_M68K_INSN_DEPTH,
     1,
+    EMU68_CCR_SCAN_DEPTH,
+    EMU68_BRANCH_INLINE_DISTANCE,
+    EMU68_MAX_LOOP_COUNT,
 };
 
 #endif

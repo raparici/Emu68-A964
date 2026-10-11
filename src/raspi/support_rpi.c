@@ -39,7 +39,7 @@ asm(
 
 
 "       .globl __aeabi_uidivmod             \n"
-"       .type _start,%function              \n"
+"       .type __aeabi_uidivmod,%function    \n"
 "__aeabi_uidivmod:                          \n"
 "       push {%lr}                          \n"
 "       sub %sp, %sp, #8                    \n"
@@ -50,6 +50,66 @@ asm(
 "       pop {%r0}                           \n"
 "       pop {%r1}                           \n"
 "       pop {%pc}                           \n"
+
+"       .globl __aeabi_idivmod             \n"
+"       .type __aeabi_idivmod,%function    \n"
+"__aeabi_idivmod:                          \n"
+"       push {%lr}                         \n"
+"       sub %sp, %sp, #8                   \n"
+"       push {%r0, %r1}                    \n"
+"       pop  {%r1, %r2}                    \n"
+"       mov %r0, %sp                       \n"
+"       bl sidiv_tail                      \n"
+"       pop {%r0}                          \n"
+"       pop {%r1}                          \n"
+"       pop {%pc}                          \n"
+
+"       .globl emu68_uldivmod_lepair       \n"
+"       .type emu68_uldivmod_lepair,%function \n"
+"emu68_uldivmod_lepair:                    \n"
+"       push {%r4, %r5, %r6, %r7, %lr}    \n"
+"       mov %r4, %r0                       \n"
+"       mov %r5, %r1                       \n"
+"       mov %r6, %r2                       \n"
+"       mov %r7, %r3                       \n"
+"       sub %sp, %sp, #16                  \n"  /* allocate struct Result64 (16 bytes) */
+"       mov %r0, %sp                       \n"
+                                                /* r1 skipped: uint64_t n needs r2:r3 alignment */
+"       mov %r2, %r5                       \n"
+"       mov %r3, %r4                       \n"
+"       push {%r6}                         \n"  /* push d_lo first -> ends at [sp+4] */
+"       push {%r7}                         \n"  /* push d_hi second -> ends at [sp+0] = BE MSW */
+"       bl uldiv                           \n"
+"       add %sp, %sp, #8                   \n"  /* pop d args */
+"       ldr %r0, [%sp, #4]                 \n"
+"       ldr %r1, [%sp, #0]                 \n"
+"       ldr %r2, [%sp, #12]                \n"
+"       ldr %r3, [%sp, #8]                 \n"
+"       add %sp, %sp, #16                  \n"  /* deallocate struct */
+"       pop {%r4, %r5, %r6, %r7, %pc}     \n"
+
+"       .globl emu68_ldivmod_lepair        \n"
+"       .type emu68_ldivmod_lepair,%function \n"
+"emu68_ldivmod_lepair:                     \n"
+"       push {%r4, %r5, %r6, %r7, %lr}    \n"
+"       mov %r4, %r0                       \n"
+"       mov %r5, %r1                       \n"
+"       mov %r6, %r2                       \n"
+"       mov %r7, %r3                       \n"
+"       sub %sp, %sp, #16                  \n"
+"       mov %r0, %sp                       \n"
+"       mov %r2, %r5                       \n"
+"       mov %r3, %r4                       \n"
+"       push {%r6}                         \n"
+"       push {%r7}                         \n"
+"       bl sldiv_tail                      \n"
+"       add %sp, %sp, #8                   \n"
+"       ldr %r0, [%sp, #4]                 \n"
+"       ldr %r1, [%sp, #0]                 \n"
+"       ldr %r2, [%sp, #12]                \n"
+"       ldr %r3, [%sp, #8]                 \n"
+"       add %sp, %sp, #16                  \n"
+"       pop {%r4, %r5, %r6, %r7, %pc}     \n"
 );
 
 #endif
@@ -207,20 +267,17 @@ static uint32_t mbox_recv(uint32_t channel)
 	volatile uint32_t *mbox_status = (uint32_t*)(ARM_PERIIOBASE + 0xB898);
 	uint32_t response, status;
 
-	do
-	{
-		do
-		{
-			status = LE32(*mbox_status);
-			dsb();
-		}
-		while (status & MBOX_RX_EMPTY);
+	status = LE32(*mbox_status);
+	dsb();
+	if (status & MBOX_RX_EMPTY)
+		return 0;   /* no reply - QEMU or real HW didn't respond */
 
-		dmb();
-		response = LE32(*mbox_read);
-		dmb();
-	}
-	while ((response & MBOX_CHANMASK) != channel);
+	dmb();
+	response = LE32(*mbox_read);
+	dmb();
+
+	if ((response & MBOX_CHANMASK) != channel)
+		return 0;
 
 	return (response & ~MBOX_CHANMASK);
 }
@@ -236,12 +293,10 @@ static void mbox_send(uint32_t channel, uint32_t data)
 	data &= ~MBOX_CHANMASK;
 	data |= channel & MBOX_CHANMASK;
 
-	do
-	{
-		status = LE32(*mbox_status);
-		dsb();
-	}
-	while (status & MBOX_TX_FULL);
+	status = LE32(*mbox_status);
+	dsb();
+	if (status & MBOX_TX_FULL)
+		return;   /* FIFO full or QEMU BE artefact - give up */
 
 	dmb();
 	*mbox_write = LE32(data);
@@ -487,6 +542,8 @@ void setup_serial()
     unsigned int uartdivfrac;
 
     uartclock = get_clock_rate(2);
+    if (uartclock == 0)
+        uartclock = 3000000;   /* fallback: 3 MHz default UART clock on raspi */
 
     wr32le(PL011_0_BASE + PL011_CR, 0);
 

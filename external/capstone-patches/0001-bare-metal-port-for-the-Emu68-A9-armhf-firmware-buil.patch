@@ -1,0 +1,2877 @@
+Build capstone for the freestanding big-endian ARMv7 firmware: CMake 3.10, libc declarations the sources expect.
+Apply to michalsc/capstone at 63f7f3ac:  patch -p1 < this-file
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,5 @@
+-cmake_minimum_required(VERSION 2.6)
++cmake_minimum_required(VERSION 3.10)
++add_compile_options("SHELL:-include inttypes.h" "SHELL:-include stdlib.h")
+ project(capstone)
+ 
+ set(VERSION_MAJOR 5)
+@@ -15,7 +16,7 @@
+   # compatibility. change OLD to NEW when minimum cmake version is updated to 3.* and
+   # set VERSION using project(capstone VERSION 4.0.0).
+   # http://www.cmake.org/cmake/help/v3.0/policy/CMP0048.html
+-  cmake_policy (SET CMP0048 OLD)
++  cmake_policy(SET CMP0048 NEW)
+ endif()
+ 
+ # to configure the options specify them in in the command line or change them in the cmake UI.
+--- a/MCInst.c
++++ b/MCInst.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/MCInstrDesc.c
++++ b/MCInstrDesc.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/MCRegisterInfo.c
++++ b/MCRegisterInfo.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //=== MC/MCRegisterInfo.cpp - Target Register Description -------*- C++ -*-===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/SStream.c
++++ b/SStream.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/AArch64/AArch64BaseInfo.c
++++ b/arch/AArch64/AArch64BaseInfo.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- AArch64BaseInfo.cpp - AArch64 Base encoding information------------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/AArch64/AArch64Disassembler.c
++++ b/arch/AArch64/AArch64Disassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===- AArch64Disassembler.cpp - Disassembler for AArch64 ISA -------------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/AArch64/AArch64InstPrinter.c
++++ b/arch/AArch64/AArch64InstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //==-- AArch64InstPrinter.cpp - Convert AArch64 MCInst to assembly syntax --==//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/AArch64/AArch64Mapping.c
++++ b/arch/AArch64/AArch64Mapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/AArch64/AArch64Module.c
++++ b/arch/AArch64/AArch64Module.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Dang Hoang Vu <danghvu@gmail.com> 2013 */
+ 
+--- a/arch/ARM/ARMDisassembler.c
++++ b/arch/ARM/ARMDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- ARMDisassembler.cpp - Disassembler for ARM/Thumb ISA --------------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/ARM/ARMInstPrinter.c
++++ b/arch/ARM/ARMInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- ARMInstPrinter.cpp - Convert ARM MCInst to assembly syntax --------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/ARM/ARMMapping.c
++++ b/arch/ARM/ARMMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/ARM/ARMModule.c
++++ b/arch/ARM/ARMModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Dang Hoang Vu <danghvu@gmail.com> 2013 */
+ 
+--- a/arch/EVM/EVMDisassembler.c
++++ b/arch/EVM/EVMDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh, 2018 */
+ 
+--- a/arch/EVM/EVMInstPrinter.c
++++ b/arch/EVM/EVMInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh, 2018 */
+ 
+--- a/arch/EVM/EVMMapping.c
++++ b/arch/EVM/EVMMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh, 2018 */
+ 
+--- a/arch/EVM/EVMModule.c
++++ b/arch/EVM/EVMModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh, 2018 */
+ 
+--- a/arch/M680X/M680XDisassembler.c
++++ b/arch/M680X/M680XDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* M680X Backend by Wolfgang Schwotzer <wolfgang.schwotzer@gmx.net> 2017 */
+ 
+--- a/arch/M680X/M680XInstPrinter.c
++++ b/arch/M680X/M680XInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* M680X Backend by Wolfgang Schwotzer <wolfgang.schwotzer@gmx.net> 2017 */
+ 
+--- a/arch/M680X/M680XModule.c
++++ b/arch/M680X/M680XModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* M680X Backend by Wolfgang Schwotzer <wolfgang.schwotzer@gmx.net> 2017 */
+ 
+--- a/arch/M68K/M68KDisassembler.c
++++ b/arch/M68K/M68KDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* ======================================================================== */
+ /* ========================= LICENSING & COPYRIGHT ======================== */
+ /* ======================================================================== */
+--- a/arch/M68K/M68KInstPrinter.c
++++ b/arch/M68K/M68KInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* M68K Backend by Daniel Collin <daniel@collin.com> 2015-2016 */
+ 
+--- a/arch/M68K/M68KModule.c
++++ b/arch/M68K/M68KModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* M68K Backend by Daniel Collin <daniel@collin.com> 2015 */
+ 
+--- a/arch/MOS65XX/MOS65XXDisassembler.c
++++ b/arch/MOS65XX/MOS65XXDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* MOS65XX Backend by Sebastian Macke <sebastian@macke.de> 2018 */
+ 
+--- a/arch/MOS65XX/MOS65XXModule.c
++++ b/arch/MOS65XX/MOS65XXModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* MOS65XX Backend by Sebastian Macke <sebastian@macke.de> 2018 */
+ 
+--- a/arch/Mips/MipsDisassembler.c
++++ b/arch/Mips/MipsDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===- MipsDisassembler.cpp - Disassembler for Mips -------------*- C++ -*-===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/Mips/MipsInstPrinter.c
++++ b/arch/Mips/MipsInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- MipsInstPrinter.cpp - Convert Mips MCInst to assembly syntax ------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/Mips/MipsMapping.c
++++ b/arch/Mips/MipsMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/Mips/MipsModule.c
++++ b/arch/Mips/MipsModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Dang Hoang Vu <danghvu@gmail.com> 2013 */
+ 
+--- a/arch/PowerPC/PPCDisassembler.c
++++ b/arch/PowerPC/PPCDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===------ PPCDisassembler.cpp - Disassembler for PowerPC ------*- C++ -*-===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/PowerPC/PPCInstPrinter.c
++++ b/arch/PowerPC/PPCInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- PPCInstPrinter.cpp - Convert PPC MCInst to assembly syntax --------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/PowerPC/PPCMapping.c
++++ b/arch/PowerPC/PPCMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/PowerPC/PPCModule.c
++++ b/arch/PowerPC/PPCModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/Sparc/SparcDisassembler.c
++++ b/arch/Sparc/SparcDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===------ SparcDisassembler.cpp - Disassembler for PowerPC ------*- C++ -*-===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/Sparc/SparcInstPrinter.c
++++ b/arch/Sparc/SparcInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- SparcInstPrinter.cpp - Convert Sparc MCInst to assembly syntax --------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/Sparc/SparcMapping.c
++++ b/arch/Sparc/SparcMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/Sparc/SparcModule.c
++++ b/arch/Sparc/SparcModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/SystemZ/SystemZDisassembler.c
++++ b/arch/SystemZ/SystemZDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===------ SystemZDisassembler.cpp - Disassembler for PowerPC ------*- C++ -*-===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/SystemZ/SystemZInstPrinter.c
++++ b/arch/SystemZ/SystemZInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- SystemZInstPrinter.cpp - Convert SystemZ MCInst to assembly syntax --------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/SystemZ/SystemZMCTargetDesc.c
++++ b/arch/SystemZ/SystemZMCTargetDesc.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- SystemZMCTargetDesc.cpp - SystemZ target descriptions -------------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/SystemZ/SystemZMapping.c
++++ b/arch/SystemZ/SystemZMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/SystemZ/SystemZModule.c
++++ b/arch/SystemZ/SystemZModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/TMS320C64x/TMS320C64xDisassembler.c
++++ b/arch/TMS320C64x/TMS320C64xDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* TMS320C64x Backend by Fotis Loukos <me@fotisl.com> 2016 */
+ 
+--- a/arch/TMS320C64x/TMS320C64xInstPrinter.c
++++ b/arch/TMS320C64x/TMS320C64xInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* TMS320C64x Backend by Fotis Loukos <me@fotisl.com> 2016 */
+ 
+--- a/arch/TMS320C64x/TMS320C64xMapping.c
++++ b/arch/TMS320C64x/TMS320C64xMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* TMS320C64x Backend by Fotis Loukos <me@fotisl.com> 2016 */
+ 
+--- a/arch/TMS320C64x/TMS320C64xModule.c
++++ b/arch/TMS320C64x/TMS320C64xModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* TMS320C64x Backend by Fotis Loukos <me@fotisl.com> 2016 */
+ 
+--- a/arch/X86/X86ATTInstPrinter.c
++++ b/arch/X86/X86ATTInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- X86ATTInstPrinter.cpp - AT&T assembly instruction printing --------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/X86/X86Disassembler.c
++++ b/arch/X86/X86Disassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- X86Disassembler.cpp - Disassembler for x86 and x86_64 -------------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/X86/X86DisassemblerDecoder.c
++++ b/arch/X86/X86DisassemblerDecoder.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /*===-- X86DisassemblerDecoder.c - Disassembler decoder ------------*- C -*-===*
+  *
+  *                     The LLVM Compiler Infrastructure
+--- a/arch/X86/X86IntelInstPrinter.c
++++ b/arch/X86/X86IntelInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- X86IntelInstPrinter.cpp - Intel assembly instruction printing -----===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/X86/X86Mapping.c
++++ b/arch/X86/X86Mapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/X86/X86Module.c
++++ b/arch/X86/X86Module.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Dang Hoang Vu <danghvu@gmail.com> 2013 */
+ 
+--- a/arch/XCore/XCoreDisassembler.c
++++ b/arch/XCore/XCoreDisassembler.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===------ XCoreDisassembler.cpp - Disassembler for PowerPC ------*- C++ -*-===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/XCore/XCoreInstPrinter.c
++++ b/arch/XCore/XCoreInstPrinter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //===-- XCoreInstPrinter.cpp - Convert XCore MCInst to assembly syntax --------===//
+ //
+ //                     The LLVM Compiler Infrastructure
+--- a/arch/XCore/XCoreMapping.c
++++ b/arch/XCore/XCoreMapping.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/arch/XCore/XCoreModule.c
++++ b/arch/XCore/XCoreModule.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/bindings/ocaml/ocaml.c
++++ b/bindings/ocaml/ocaml.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013> */
+ 
+--- a/contrib/cs_driver/cs_driver/cs_driver.c
++++ b/contrib/cs_driver/cs_driver/cs_driver.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Driver */
+ /* By Satoshi Tanda <tanda.sat@gmail.com>, 2016 */
+ 
+--- a/cs.c
++++ b/cs.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ #if defined (WIN32) || defined (WIN64) || defined (_WIN32) || defined (_WIN64)
+--- a/cstool/cstool.c
++++ b/cstool/cstool.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Tang Yuhang <tyh000011112222@gmail.com> 2016 */
+ /* pancake <pancake@nopcode.org> 2017 */
+ 
+--- a/cstool/cstool_arm.c
++++ b/cstool/cstool_arm.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+--- a/cstool/cstool_arm64.c
++++ b/cstool/cstool_arm64.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013> */
+ 
+--- a/cstool/cstool_evm.c
++++ b/cstool/cstool_evm.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+--- a/cstool/cstool_m680x.c
++++ b/cstool/cstool_m680x.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* M680X Backend by Wolfgang Schwotzer <wolfgang.schwotzer@gmx.net> 2017 */
+ 
+--- a/cstool/cstool_m68k.c
++++ b/cstool/cstool_m68k.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ //
+ //  cstool_m68k.c
+ //  
+--- a/cstool/cstool_mips.c
++++ b/cstool/cstool_mips.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013> */
+ 
+--- a/cstool/cstool_mos65xx.c
++++ b/cstool/cstool_mos65xx.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+--- a/cstool/cstool_ppc.c
++++ b/cstool/cstool_ppc.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013> */
+ 
+--- a/cstool/cstool_sparc.c
++++ b/cstool/cstool_sparc.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2014 */
+ 
+--- a/cstool/cstool_systemz.c
++++ b/cstool/cstool_systemz.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2014 */
+ 
+--- a/cstool/cstool_tms320c64x.c
++++ b/cstool/cstool_tms320c64x.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Fotis Loukos <me@fotisl.com>, 2017 */
+ 
+--- a/cstool/cstool_x86.c
++++ b/cstool/cstool_x86.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013> */
+ 
+ #include <stdio.h>
+--- a/cstool/cstool_xcore.c
++++ b/cstool/cstool_xcore.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2014 */
+ 
+--- a/suite/arm/test_arm_regression.c
++++ b/suite/arm/test_arm_regression.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By David Hogarty, 2014 */
+ 
+--- a/suite/benchmark/test_iter_benchmark.c
++++ b/suite/benchmark/test_iter_benchmark.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By bughoho <bughoho@gmail.com>, 2015> */
+ 
+--- a/suite/capstone_get_setup.c
++++ b/suite/capstone_get_setup.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /*
+  Retrieve architectures compiled in Capstone.
+  By Nguyen Anh Quynh, 2019.
+--- a/suite/cstest/src/arm64_detail.c
++++ b/suite/cstest/src/arm64_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/arm_detail.c
++++ b/suite/cstest/src/arm_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/capstone_test.c
++++ b/suite/cstest/src/capstone_test.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/evm_detail.c
++++ b/suite/cstest/src/evm_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/helper.c
++++ b/suite/cstest/src/helper.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/m680x_detail.c
++++ b/suite/cstest/src/m680x_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/m68k_detail.c
++++ b/suite/cstest/src/m68k_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/main.c
++++ b/suite/cstest/src/main.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/mips_detail.c
++++ b/suite/cstest/src/mips_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/mos65xx_detail.c
++++ b/suite/cstest/src/mos65xx_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/ppc_detail.c
++++ b/suite/cstest/src/ppc_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/sparc_detail.c
++++ b/suite/cstest/src/sparc_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/systemz_detail.c
++++ b/suite/cstest/src/systemz_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/tms320c64x_detail.c
++++ b/suite/cstest/src/tms320c64x_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/x86_detail.c
++++ b/suite/cstest/src/x86_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/cstest/src/xcore_detail.c
++++ b/suite/cstest/src/xcore_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone testing regression */
+ /* By Do Minh Tuan <tuanit96@gmail.com>, 02-2019 */
+ 
+--- a/suite/fuzz/driverbin.c
++++ b/suite/fuzz/driverbin.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <stdio.h>
+--- a/suite/fuzz/drivermc.c
++++ b/suite/fuzz/drivermc.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <stdio.h>
+--- a/suite/fuzz/fuzz_diff.c
++++ b/suite/fuzz/fuzz_diff.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+--- a/suite/fuzz/fuzz_disasm.c
++++ b/suite/fuzz/fuzz_disasm.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ // the following must precede stdio (woo, thanks msft)
+ #if defined(_MSC_VER) && _MSC_VER < 1900
+ #define _CRT_SECURE_NO_WARNINGS
+--- a/suite/fuzz/fuzz_harness.c
++++ b/suite/fuzz/fuzz_harness.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <inttypes.h>
+--- a/suite/fuzz/onefile.c
++++ b/suite/fuzz/onefile.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <stdio.h>
+--- a/suite/regress/invalid_read_in_print_operand.c
++++ b/suite/regress/invalid_read_in_print_operand.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ #include <capstone.h>
+ 
+ #define BINARY "\x3b\x30\x62\x93\x5d\x61\x03\xe8"
+--- a/tests/test_arm.c
++++ b/tests/test_arm.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_arm64.c
++++ b/tests/test_arm64.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_basic.c
++++ b/tests/test_basic.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_customized_mnem.c
++++ b/tests/test_customized_mnem.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2015 */
+ 
+--- a/tests/test_detail.c
++++ b/tests/test_detail.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_evm.c
++++ b/tests/test_evm.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2018 */
+ 
+--- a/tests/test_iter.c
++++ b/tests/test_iter.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_m680x.c
++++ b/tests/test_m680x.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* M680X Backend by Wolfgang Schwotzer <wolfgang.schwotzer@gmx.net> 2017 */
+ 
+--- a/tests/test_m68k.c
++++ b/tests/test_m68k.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2014 */
+ 
+--- a/tests/test_mips.c
++++ b/tests/test_mips.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_mos65xx.c
++++ b/tests/test_mos65xx.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Sebastian Macke <sebastian@macke.de>, 2018 */
+ 
+--- a/tests/test_ppc.c
++++ b/tests/test_ppc.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_skipdata.c
++++ b/tests/test_skipdata.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_sparc.c
++++ b/tests/test_sparc.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2014 */
+ 
+--- a/tests/test_systemz.c
++++ b/tests/test_systemz.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2014 */
+ 
+--- a/tests/test_tms320c64x.c
++++ b/tests/test_tms320c64x.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* TMS320C64x Backend by Fotis Loukos <me@fotisl.com> 2016 */
+ 
+--- a/tests/test_x86.c
++++ b/tests/test_x86.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013 */
+ 
+--- a/tests/test_xcore.c
++++ b/tests/test_xcore.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembler Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2014 */
+ 
+--- a/utils.c
++++ b/utils.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Nguyen Anh Quynh <aquynh@gmail.com>, 2013-2015 */
+ 
+--- a/windows/winkernel_mm.c
++++ b/windows/winkernel_mm.c
+@@ -1,3 +1,21 @@
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <inttypes.h>
++#include <stdlib.h>
+ /* Capstone Disassembly Engine */
+ /* By Satoshi Tanda <tanda.sat@gmail.com>, 2016 */
+ 

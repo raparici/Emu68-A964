@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
@@ -11,6 +12,18 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+
+static inline uint32_t *emit_flags_nz_from_shifted(uint32_t *ptr, uint8_t reg, uint8_t shift)
+{
+#ifdef __aarch64__
+    *ptr++ = adds_reg(31, 31, reg, LSL, shift);
+#else
+    uint8_t nzr = RA_AllocARMRegister(&ptr);
+    *ptr++ = lsls_immed(nzr, reg, shift);
+    RA_FreeARMRegister(&ptr, nzr);
+#endif
+    return ptr;
+}
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 static uint32_t *EMIT_MUL_DIV_(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
@@ -28,7 +41,6 @@ uint32_t *EMIT_DIVS_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __a
 uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_PACK_reg")));
 uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-#ifdef __aarch64__
     uint16_t addend = BE16((*m68k_ptr)[0]);
     uint8_t tmp = -1;
 
@@ -46,11 +58,11 @@ uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         tmp = RA_CopyFromM68kRegister(&ptr, opcode & 7);
     }
 
-    if (addend & 0xfff) {
-        *ptr++ = add_immed(tmp, tmp, addend & 0xfff);
-    }
-    if (addend & 0xf000) {
-        *ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
+    if (addend) {
+        uint8_t adj = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_immed_u16(adj, addend, 0);
+        *ptr++ = add_reg(tmp, tmp, adj, LSL, 0);
+        RA_FreeARMRegister(&ptr, adj);
     }
 
     *ptr++ = bfi(tmp, tmp, 4, 4);
@@ -72,18 +84,14 @@ uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
         RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-        *ptr++ = bfxil(dst, tmp, 4, 8);
+        EMIT_bfxil(&ptr, dst, tmp, 4, 8, REG_EMIT_TMP);
     }
 
     (*m68k_ptr)++;
     ptr = EMIT_AdvancePC(ptr, 4);
 
     RA_FreeARMRegister(&ptr, tmp);
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] PACK at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
+
 
     return ptr;
 }
@@ -91,7 +99,6 @@ uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_UNPK_reg")));
 uint32_t *EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-#ifdef __aarch64__
     uint16_t addend = BE16((*m68k_ptr)[0]);
     uint8_t tmp = -1;
 
@@ -117,13 +124,19 @@ uint32_t *EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     *ptr++ = orr_reg(tmp, tmp, tmp, LSL, 4);
-    *ptr++ = and_immed(tmp, tmp, 28, 24);
-
-    if (addend & 0xfff) {
-        *ptr++ = add_immed(tmp, tmp, addend & 0xfff);
+    {
+        uint8_t msk = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_immed_u16(msk, 0xFF0F, 0);
+        *ptr++ = movt_immed_u16(msk, 0xFFFF);
+        *ptr++ = and_reg(tmp, tmp, msk, LSL, 0);
+        RA_FreeARMRegister(&ptr, msk);
     }
-    if (addend & 0xf000) {
-        *ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
+
+    if (addend) {
+        uint8_t adj = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_immed_u16(adj, addend, 0);
+        *ptr++ = add_reg(tmp, tmp, adj, LSL, 0);
+        RA_FreeARMRegister(&ptr, adj);
     }
 
     if (opcode & 8)
@@ -143,11 +156,7 @@ uint32_t *EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 4);
 
     RA_FreeARMRegister(&ptr, tmp);
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] UNPK at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
+
     return ptr;
 }
 
@@ -316,10 +325,10 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = cmn_reg(31, test_register, LSL, 0);
                 break;
             case 2:
-                *ptr++ = cmn_reg(31, test_register, LSL, 16);
+                ptr = emit_flags_nz_from_shifted(ptr, test_register, 16);
                 break;
             case 1:
-                *ptr++ = cmn_reg(31, test_register, LSL, 24);
+                ptr = emit_flags_nz_from_shifted(ptr, test_register, 24);
                 break;
         }
 #endif
@@ -342,6 +351,8 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
     uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+
+    RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
     uint8_t tmp_a = RA_AllocARMRegister(&ptr);
     uint8_t tmp_b = RA_AllocARMRegister(&ptr);
@@ -434,7 +445,7 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
-    uint8_t tmp_a = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_a = RA_AllocARMRegister_NoFP(&ptr);
     uint8_t tmp_b = RA_AllocARMRegister(&ptr);
     uint8_t tmp_c = RA_AllocARMRegister(&ptr);
     uint8_t tmp_d = RA_AllocARMRegister(&ptr);
@@ -444,6 +455,9 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+    RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
     /* predecremented address, special case if SP */
     if ((opcode & 7) == 7)
@@ -544,7 +558,7 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = ubfx(tmp_a, src, 4, 4);
     *ptr++ = ubfx(tmp_b, dest, 4, 4);
     *ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
-    *ptr++ = csinv(tmp_a, tmp_a, 31, A64_CC_HI);
+    EMIT_csinv(&ptr, tmp_a, tmp_a, 31, A64_CC_HI);
     *ptr++ = cmp_immed(tmp_a, 0);
     *ptr++ = b_cc(A64_CC_HI, 2);
     *ptr++ = add_immed(tmp_a, tmp_a, 9);
@@ -557,14 +571,14 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask & SR_XC)
     {
         /* if A64_CC_LT then there was a carry */
-        *ptr++ = cset(tmp_b, A64_CC_LT);
+        EMIT_cset(&ptr, tmp_b, A64_CC_LT);
         *ptr++ = bfi(cc, tmp_b, 0, 1);
         /* update X flag*/
         *ptr++ = bfi(cc, cc, 4, 1);
     }
     if (update_mask & SR_NZ)
     {
-        *ptr++ = cmn_reg(31, tmp_a, LSL, 24);
+        ptr = emit_flags_nz_from_shifted(ptr, tmp_a, 24);
 
         if (update_mask & SR_Z)
         {
@@ -587,6 +601,7 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+#define DIV_SRNEEDS SR_NZV
 static struct OpcodeDef InsnTable[512] = {
     [0000 ... 0007] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC, 1, 0, 1 },    //D0 Destination
     [0020 ... 0047] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
@@ -598,9 +613,9 @@ static struct OpcodeDef InsnTable[512] = {
     [0220 ... 0247] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 4 },
     [0250 ... 0274] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
  
-    [0300 ... 0307] = { { EMIT_DIVU_reg }, NULL, 0, SR_NZVC, 1, 0, 2 },  //D0 Destination, DIVU.W
-    [0320 ... 0347] = { { EMIT_DIVU_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [0350 ... 0374] = { { EMIT_DIVU_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0300 ... 0307] = { { EMIT_DIVU_reg }, NULL, DIV_SRNEEDS, SR_NZVC, 1, 0, 2 },  //D0 Destination, DIVU.W
+    [0320 ... 0347] = { { EMIT_DIVU_mem }, NULL, DIV_SRNEEDS, SR_NZVC, 1, 0, 2 },
+    [0350 ... 0374] = { { EMIT_DIVU_ext }, NULL, DIV_SRNEEDS, SR_NZVC, 1, 1, 2 },
  
     [0400 ... 0407] = { { EMIT_SBCD_reg }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
     [0410 ... 0417] = { { EMIT_SBCD_mem }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },  //R0 Destination
@@ -617,9 +632,9 @@ static struct OpcodeDef InsnTable[512] = {
     [0620 ... 0647] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, 
     [0650 ... 0671] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0700 ... 0707] = { { EMIT_DIVS_reg }, NULL, 0, SR_NZVC, 1, 0, 2 },  //D0 Destination, DIVS.W
-    [0720 ... 0747] = { { EMIT_DIVS_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [0750 ... 0774] = { { EMIT_DIVS_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0700 ... 0707] = { { EMIT_DIVS_reg }, NULL, DIV_SRNEEDS, SR_NZVC, 1, 0, 2 },  //D0 Destination, DIVS.W
+    [0720 ... 0747] = { { EMIT_DIVS_mem }, NULL, DIV_SRNEEDS, SR_NZVC, 1, 0, 2 },
+    [0750 ... 0774] = { { EMIT_DIVS_ext }, NULL, DIV_SRNEEDS, SR_NZVC, 1, 1, 2 },
 };
 
 uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)

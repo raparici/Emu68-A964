@@ -1,3 +1,4 @@
+#include "Emu68_ARM_emit.h"
 #include <stdint.h>
 /*
     Copyright © 2020 Michal Schulz <michal.schulz@gmx.de>
@@ -31,7 +32,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
             success_condition = A64_CC_NE;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_Z);
+            *ptr++ = _tst_val(REG_SR, SR_Z);
             success_condition = ARM_CC_NE;
 #endif
             break;
@@ -41,7 +42,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
             success_condition = A64_CC_EQ;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_Z);
+            *ptr++ = _tst_val(REG_SR, SR_Z);
             success_condition = ARM_CC_EQ;
 #endif
             break;
@@ -51,7 +52,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
             success_condition = A64_CC_NE;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_C);
+            *ptr++ = _tst_val(REG_SR, SR_C);
             success_condition = ARM_CC_NE;
 #endif
             break;
@@ -61,7 +62,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
             success_condition = A64_CC_EQ;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_C);
+            *ptr++ = _tst_val(REG_SR, SR_C);
             success_condition = ARM_CC_EQ;
 #endif
             break;
@@ -71,7 +72,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
             success_condition = A64_CC_EQ;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_N);
+            *ptr++ = _tst_val(REG_SR, SR_N);
             success_condition = ARM_CC_EQ;
 #endif
             break;
@@ -81,7 +82,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
             success_condition = A64_CC_NE;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_N);
+            *ptr++ = _tst_val(REG_SR, SR_N);
             success_condition = ARM_CC_NE;
 #endif
             break;
@@ -91,7 +92,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
             success_condition = A64_CC_NE;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_V);
+            *ptr++ = _tst_val(REG_SR, SR_V);
             success_condition = ARM_CC_NE;
 #endif
             break;
@@ -101,7 +102,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
             success_condition = A64_CC_EQ;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_V);
+            *ptr++ = _tst_val(REG_SR, SR_V);
             success_condition = ARM_CC_EQ;
 #endif
             break;
@@ -118,7 +119,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
 */
             success_condition = A64_CC_NE;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
+            *ptr++ = _tst_val(REG_SR, SR_Z | SR_C);
             success_condition = ARM_CC_NE;
 #endif
             break;
@@ -135,7 +136,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
 */
             success_condition = A64_CC_EQ;
 #else
-            *ptr++ = tst_immed(REG_SR, SR_Z);
+            *ptr++ = _tst_val(REG_SR, SR_Z);
             *ptr++ = tst_cc_immed(ARM_CC_EQ, REG_SR, SR_C);
             success_condition = ARM_CC_EQ;
 #endif
@@ -149,7 +150,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             success_condition = A64_CC_EQ;
 #else
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+            *ptr++ = _ands_val(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If N and V != 0, perform equality check */
             success_condition = ARM_CC_EQ;
 #endif
@@ -163,7 +164,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             success_condition = A64_CC_NE;
 #else
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
+            *ptr++ = _and_val(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
             success_condition = ARM_CC_EQ;
@@ -180,7 +181,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             success_condition = A64_CC_EQ;
 #else
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
+            *ptr++ = _ands_val(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If above fails, check if Z==0, N==1 and V==1 */
             success_condition = ARM_CC_EQ;
 #endif
@@ -196,7 +197,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             success_condition = A64_CC_NE;
 #else
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+            *ptr++ = _and_val(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
             *ptr++ = and_cc_immed(ARM_CC_NE, cond_tmp, REG_SR, SR_Z); /* If failed, extract Z flag */

@@ -1,0 +1,90 @@
+Build tiny-std for the freestanding big-endian ARMv7 firmware: libc declarations and format macros.
+Apply to michalsc/tiny-std at 67729835:  patch -p1 < this-file
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,5 @@
+-cmake_minimum_required(VERSION 3.0.0)
++cmake_minimum_required(VERSION 3.10)
++add_compile_options("SHELL:-include inttypes.h" "SHELL:-include stdlib.h")
+ project(tinystl VERSION 0.1.2)
+ set(CMAKE_CXX_STANDARD 11)
+ include(verstring.cmake)
+--- a/lib/memory.cpp
++++ b/lib/memory.cpp
+@@ -1,3 +1,23 @@
++#include <stddef.h>
++extern "C" { void *malloc(size_t); void free(void*); void *realloc(void*, size_t); void *calloc(size_t, size_t); }
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <cstdlib>
++#include <cinttypes>
+ /*
+     Copyright © 2020 Michal Schulz <michal.schulz@gmx.de>
+     https://github.com/michalsc
+--- a/lib/string.cpp
++++ b/lib/string.cpp
+@@ -1,3 +1,23 @@
++#include <stddef.h>
++extern "C" { void *malloc(size_t); void free(void*); void *realloc(void*, size_t); void *calloc(size_t, size_t); }
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <cstdlib>
++#include <cinttypes>
+ /*
+     Copyright © 2020 Michal Schulz <michal.schulz@gmx.de>
+     https://github.com/michalsc
+--- a/lib/version.cpp
++++ b/lib/version.cpp
+@@ -1,3 +1,23 @@
++#include <stddef.h>
++extern "C" { void *malloc(size_t); void free(void*); void *realloc(void*, size_t); void *calloc(size_t, size_t); }
++#include <stdlib.h>
++#include <stdint.h>
++#ifndef PRIx64
++#define PRId64 "lld"
++#define PRIi64 "lli"
++#define PRIu64 "llu"
++#define PRIo64 "llo"
++#define PRIx64 "llx"
++#define PRIX64 "llX"
++#endif
++#ifndef PRIx32
++#define PRId32 "d"
++#define PRIu32 "u"
++#define PRIx32 "x"
++#define PRIX32 "X"
++#endif
++#include <cstdlib>
++#include <cinttypes>
+ namespace tinystd {
+     namespace __internal__ {
+         const char * __attribute__((used)) __tinystd_version = "\0" VERSION_STRING;

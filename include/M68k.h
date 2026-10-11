@@ -40,6 +40,7 @@ struct M68KTranslationUnit {
     void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
     uint32_t        mt_CRC32;
+    uint32_t        mt_CRC32Full;
     uint32_t        mt_ARMCode[]
 #ifdef __aarch64__
     __attribute__((aligned(64)));
@@ -110,16 +111,62 @@ struct M68KState
     uint32_t JIT_CACHE_FREE;
     uint32_t JIT_SOFTFLUSH_THRESH;
     uint32_t JIT_CONTROL;
+    uint32_t MOVE2SR_VAL;
+    uint32_t MOVE2SR_REQ;   /* armhf: 1 => dispatcher applies the deferred SR write  */
+    uint32_t STOP_REQ;
+    uint32_t CACR_VAL;
+    uint32_t CACR_REQ;
+    uint32_t CAAR;
+
+    uint32_t D_hi[8];
+    uint32_t OMMX_PAD;          /* keeps E[] 8-byte aligned whatever precedes it              */
+    uint64_t E[24];
+
+    uint32_t LOOP_BUDGET;
+
+    uint32_t DBG_CTRL;      /* $0ED - upstream: debug level bits 0-1, disasm bit 2 */
+    uint32_t DBG_ADDRLO;    /* $0EE - upstream: debug_range_min                    */
+    uint32_t DBG_ADDRHI;    /* $0EF - upstream: debug_range_max                    */
+    uint32_t JIT_CACHE_MISS;
+    uint32_t JIT_CONTROL2;
+    uint32_t EXC_TAKEN;
+    uint32_t BUSCR;         /* $008 - 68060 bus control register (honest storage)   */
+    uint32_t PCR;           /* $808 - 68060 PCR, WRITABLE BITS ONLY (mask 0x43)     */
+    uint32_t CACR_RDPC;
+    uint32_t OMMX_TOUCHED;
+    uint32_t ONCALL_REQ;
+    uint32_t ONCALL_ID;
 };
+
+#define M68K_LOOP_BUDGET_RELOAD 256u
 
 #define JCCB_SOFT   0
 #define JCCF_SOFT   0x00000001
+
+static inline int  jit_unit_marked(const struct M68KTranslationUnit *u) { return ((uintptr_t)u->mt_M68kAddress & 1u) != 0; }
+static inline void jit_unit_mark(struct M68KTranslationUnit *u)         { u->mt_M68kAddress = (uint16_t *)((uintptr_t)u->mt_M68kAddress | 1u); }
+static inline void jit_unit_unmark(struct M68KTranslationUnit *u)       { u->mt_M68kAddress = (uint16_t *)((uintptr_t)u->mt_M68kAddress & ~(uintptr_t)1u); }
+int  jit_soft_flush_active(void);
+void jit_flush_all_guest(void);
+/* M68k_Translator.c: verify a marked unit once (1 = kept and unmarked, 0 = stale and freed) */
+int  jit_soft_verify(struct M68KTranslationUnit *u);
 
 #define CACR_DE 0x80000000
 #define CACR_IE 0x00008000
 
 #define CACRB_DE 31
 #define CACRB_IE 15
+
+#define CACR20_EI   0x00000001      /* enable instruction cache                              */
+#define CACR20_FI   0x00000002      /* freeze instruction cache                              */
+#define CACR20_CEI  0x00000004      /* clear entry in instruction cache        (strobe)      */
+#define CACR20_CI   0x00000008      /* clear instruction cache  = CACRF_ClearI (strobe)      */
+#define CACR30_ED   0x00000100      /* 68030 enable data cache                               */
+#define CACR30_FD   0x00000200      /* 68030 freeze data cache                               */
+#define CACR30_CED  0x00000400      /* 68030 clear entry in data cache         (strobe)      */
+#define CACR30_CD   0x00000800      /* 68030 clear data cache   = CACRF_ClearD (strobe)      */
+#define CACR20_PERSIST  (CACR20_EI | CACR20_FI)
+#define CACR_CLEAR_ANY  (CACR20_CEI | CACR20_CI | CACR30_CED | CACR30_CD)
 
 #define SR_C    0x0001
 #define SR_V    0x0002
@@ -274,8 +321,27 @@ uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
 uint32_t *EMIT_FlushPC(uint32_t *ptr);
 uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr);
 uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, uint8_t read_only, int32_t *imm_offset);
+uint32_t *EMIT_LoadFromEffectiveAddress_NoFP(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, uint8_t read_only, int32_t *imm_offset);
 uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...);
+
+#ifndef __aarch64__
+uint32_t *EMIT_ExceptionUnitExit(uint32_t *ptr, uint32_t **pop_loc);
+uint32_t *EMIT_ExceptionUnitExitTail(uint32_t *ptr, uint32_t *pop_loc);
+
+#define AERR_SSW_FC_MASK    0x0007      /* function code                                     */
+#define AERR_SSW_FC_DATA    0x0001      /* ... user data     (|0x4 at runtime if supervisor) */
+#define AERR_SSW_FC_PROG    0x0002      /* ... user program  (|0x4 at runtime if supervisor) */
+#define AERR_SSW_FC_SUPER   0x0004      /* FC bit 2 - ORed in from SR.S by EMIT_AddressError  */
+#define AERR_SSW_IN         0x0008      /* 0 = faulted while processing an instruction        */
+#define AERR_SSW_RW         0x0010      /* 1 = read, 0 = write                                */
+
+uint32_t *EMIT_AddressError(uint32_t *ptr, uint8_t addr_reg, uint16_t ssw, uint16_t ir);
+
+void M68K_RegisterPopFixup(uint32_t *loc);
+
+extern uint16_t *M68K_ActiveInsn;
+#endif
 
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
@@ -356,8 +422,11 @@ int M68K_IsBranch(uint16_t *insn_stream);
 uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition);
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
+void M68K_FlushCache(void);
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 void *M68K_TranslateNoCache(uint16_t *m68kcodeptr);
+void m68k_do_trace(struct M68KState *m68k, uint32_t traced_pc);
+extern int g_trace_step;
 struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit);
 void M68K_DumpStats();
 uint8_t M68K_GetCC(uint32_t **ptr);

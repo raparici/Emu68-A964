@@ -85,7 +85,7 @@ void disasm_open()
 #ifdef __aarch64__
     err = cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &h_arm);
 #else
-    err = cs_open(CS_ARCH_ARM, CS_MODE_BIG_ENDIAN | CS_MODE_ARM, h_arm);
+    err = cs_open(CS_ARCH_ARM, CS_MODE_BIG_ENDIAN | CS_MODE_ARM, &h_arm);
 #endif
     (void)err;
 }
@@ -190,4 +190,125 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
         cs_free(insn_m68k, count_m68k);
     if (count_arm)
         cs_free(insn_arm, count_arm);
+}
+#if defined(__arm__) && !defined(__aarch64__) && !defined(__APPLE__)
+#define R10_TEXT   __attribute__((section(".r10_tail_text"), noinline, optimize("Os")))
+#define R10_RODATA __attribute__((section(".r10_tail_rodata")))
+#define R10_TEXTEND __attribute__((section(".r10_textend"), noinline, optimize("Os")))   /* both images: .text's end */
+#define R10_BSS    __attribute__((section(".bss.~r10")))
+#else
+#define R10_TEXT   __attribute__((noinline))
+#define R10_TEXTEND __attribute__((noinline))
+#define R10_RODATA
+#define R10_BSS
+#endif
+
+uint32_t g_disasm_ok R10_BSS;               /* both handles open (disasm_open_b) */
+uint32_t g_disasm_last_count R10_BSS;       /* m68k instructions the last dump decoded */
+uintptr_t g_r10_span_addr R10_BSS;          /* the dumped unit's m68k start (src/jit_levers.c jit_dbg_unit_w) */
+uintptr_t g_r10_span_bytes R10_BSS;         /* and its span: [mt_M68kAddress, mt_M68kHigh) */
+
+/* written + 1 < limit: the NUL after the last character fits too */
+R10_TEXTEND static void my_putc_b(void *data, const char c)
+{
+    struct putc_data *p = data;
+
+    if (p->written + 1 < p->limit)
+    {
+        p->buffer[p->written] = c;
+        p->buffer[p->written+1] = 0;
+    }
+
+    p->written++;
+}
+
+R10_TEXTEND static int my_vsnprintf_b(char *str, size_t size, const char *format, va_list ap)
+{
+    struct putc_data p;
+    p.buffer = str;
+    p.limit = size;
+    p.written = 0;
+    if (size)
+        str[0] = 0;
+
+    vkprintf_pc(my_putc_b, &p, format, ap);
+
+    return p.written;
+}
+
+static const char s_r10_err[] R10_RODATA = "[JIT] capstone %d %d\n";
+R10_TEXT void disasm_open_b(void)
+{
+    cs_opt_mem setup;
+    cs_err e_m68k, e_arm;
+
+    setup.malloc = my_malloc;
+    setup.calloc = my_calloc;
+    setup.realloc = my_realloc;
+    setup.free = my_free;
+    setup.vsnprintf = my_vsnprintf_b;
+    cs_option(0, CS_OPT_MEM, (uintptr_t)&setup);
+
+    e_m68k = cs_open(CS_ARCH_M68K, CS_MODE_BIG_ENDIAN | CS_MODE_M68K_040, &h_m68k);
+#ifdef __aarch64__
+    e_arm = cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &h_arm);
+#else
+    e_arm = cs_open(CS_ARCH_ARM, CS_MODE_ARM, &h_arm);
+#endif
+    g_disasm_ok = e_m68k == CS_ERR_OK && e_arm == CS_ERR_OK;
+    if (!g_disasm_ok)
+        kprintf(s_r10_err, (int)e_m68k, (int)e_arm);
+}
+
+
+#define R10_M68K_ADDR(in) ((uint32_t)(in)->address)
+
+R10_TEXT void disasm_print_b(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
+{
+    cs_insn *in;
+    const uint8_t *code;
+    size_t size;
+    uint64_t addr;
+    uint32_t n = 0;
+
+    g_disasm_last_count = 0;
+    if (!g_disasm_ok || !h_m68k || !h_arm)
+        return;                         /* not open (disasm_open_b said why), or closed by the translator's path */
+    in = cs_malloc(h_m68k);             /* ONE instruction for both sides: detail is off, the struct is the same */
+    if (!in)
+    {
+        kprintf(s_r10_err, (int)cs_errno(h_m68k), (int)cs_errno(h_arm));
+        return;
+    }
+    if (m68k_addr)
+    {
+        code = (const uint8_t *)m68k_addr;
+        size = (uintptr_t)m68k_addr == g_r10_span_addr ? g_r10_span_bytes : 22u * m68k_count;
+        addr = (uintptr_t)m68k_addr;
+        while (n < m68k_count && cs_disasm_iter(h_m68k, &code, &size, &addr, in))
+        {
+            if (n)
+                kprintf("\n");
+            kprintf("[JIT] %08x: %7s %21s", R10_M68K_ADDR(in), in->mnemonic, in->op_str);
+            n++;
+        }
+    }
+    g_disasm_last_count = n;
+    if (n == 0)
+        kprintf("[JIT]                                        ");
+    if (arm_addr)
+    {
+        code = (const uint8_t *)arm_addr;
+        size = arm_size;
+        addr = (uintptr_t)arm_addr - (uintptr_t)arm_start;
+        n = 0;
+        while (cs_disasm_iter(h_arm, &code, &size, &addr, in))
+        {
+            if (n)
+                kprintf("[JIT]                                        ");
+            kprintf("-> %08x: %7s %s\n", (uint32_t)in->address, in->mnemonic, in->op_str);
+            n++;
+        }
+    }
+    cs_free(in, 1);
 }

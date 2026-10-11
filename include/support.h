@@ -59,7 +59,7 @@ static inline uint16_t LE16(uint16_t x) { return x; }
 
 #endif
 
-typedef unsigned long size_t;
+typedef __SIZE_TYPE__ size_t;
 
 static inline uint32_t rd32le(uintptr_t iobase) {
     return LE32(*(volatile uint32_t *)(iobase));
@@ -124,6 +124,7 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * format, va_list
 void kprintf_pc(putc_func putc_f, void *putc_data, const char * format, ...);
 void vkprintf(const char * format, va_list args);
 void kprintf(const char * format, ...);
+void kprintf_fb(const char * format, ...);
 void arm_flush_cache(uintptr_t addr, uint32_t length);
 void arm_icache_invalidate(uintptr_t addr, uint32_t length);
 void arm_dcache_invalidate(uintptr_t addr, uint32_t length);
@@ -136,6 +137,13 @@ void *memcpy(void *dst, const void *src, size_t sz);
 void *memset(void *ptr, int fill, size_t sz);
 char *strstr(const char *str, const char *find);
 void bzero(void *ptr, size_t sz);
+#if defined(__GNUC__)
+#include <string.h>
+#undef NULL
+#define NULL ((void*)0)             /* this header's own spelling again (stddef.h's differs by a space) */
+#define memcpy(d, s, n) __builtin_memcpy((d), (s), (n))
+#define memset(p, v, n) __builtin_memset((p), (v), (n))
+#endif
 void platform_init();
 void platform_post_init();
 void setup_serial();
@@ -171,6 +179,10 @@ struct Result32 uidiv(uint32_t n, uint32_t d);
 struct Result32 sidiv(int32_t n, int32_t d);
 struct Result64 uldiv(uint64_t n, uint64_t d);
 struct Result64 sldiv(int64_t n, int64_t d);
+struct Result32 sidiv_tail(int32_t n, int32_t d);
+struct Result64 sldiv_tail(int64_t n, int64_t d);
+uint64_t emu68_udivmod64(uint64_t n, uint64_t d, uint64_t *rem);
+int64_t emu68_sdivmod64(int64_t n, int64_t d, int64_t *rem);
 
 #ifdef RASPI
 #include "support_rpi.h"

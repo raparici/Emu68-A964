@@ -165,9 +165,19 @@ static inline uint32_t adr(uint8_t rd, uint32_t imm21) { return I32(0x10000000 |
 static inline uint32_t adrp(uint8_t rd, uint32_t imm21) { return I32(0x90000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
 
 /* Load/Store instructions */
+#ifdef __aarch64__
 static inline uint32_t ldr_pcrel(uint8_t rt, int32_t offset19) { return I32(0x18000000 | ((offset19 & 0x7ffff) << 5) | (rt & 31)); }
 static inline uint32_t ldr64_pcrel(uint8_t rt, int32_t offset19) { return I32(0x58000000 | ((offset19 & 0x7ffff) << 5) | (rt & 31)); }
 static inline uint32_t ldrsw_pcrel(uint8_t rt, int32_t offset19) { return I32(0x98000000 | ((offset19 & 0x7ffff) << 5) | (rt & 31)); }
+#else
+static inline uint32_t ldr_pcrel(uint8_t rt, int32_t n) {
+    int32_t off = n * 4 - 8;
+    if (off >= 0)
+        return INSN_TO_LE(0xe59f0000 | ((rt & 15) << 12) | (off & 0xfff)); /* LDR Rt,[PC,+off] */
+    return INSN_TO_LE(0xe51f0000 | ((rt & 15) << 12) | ((-off) & 0xfff));  /* LDR Rt,[PC,-off] */
+}
+static inline uint32_t ldr64_pcrel(uint8_t rt, int32_t n) { return ldr_pcrel(rt, n); }
+#endif
 
 typedef enum { UXTB = 0, UXTH = 1, UXTW = 2, UXTX = 3, SXTB = 4, SXTH = 5, SXTW = 6, SXTX = 7} reg_extend_t;
 
@@ -647,7 +657,9 @@ uint32_t * EMIT_Store96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_
     *ptr++ = ubfx64(tmp_reg, exp_reg, 52, 11);
     *ptr++ = mov_immed_u16(exp_reg, 0x3c00, 1);
     *ptr++ = add_reg(exp_reg, exp_reg, tmp_reg, LSL, 16);
+#ifdef __aarch64__
     *ptr++ = orr64_immed(mant_reg, mant_reg, 1, 1, 1);
+#endif
     *ptr++ = orr_reg(exp_reg, exp_reg, sign_reg, ROR, 1);
     *ptr++ = stur_offset(base, exp_reg, offset9);
     *ptr++ = stur64_offset(base, mant_reg, offset9+4);
@@ -1087,5 +1099,11 @@ uint32_t number_to_mask(uint32_t number)
     else
         return 0xffffffff;
 }
+
+#ifndef __aarch64__
+#include "../superinc/gaps.h"    /* relative from include/ -> superinc/ */
+#include "../superinc/fp-gaps.h"
+#include "../superinc/gaps64.h"
+#endif
 
 #endif /* _A64_H */
