@@ -1,0 +1,93 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "type": "shell",
+        "label": "build raspi",
+        "command": "make",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build-raspi"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "build qemu virt",
+        "command": "make",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build-virt"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "build raspi64",
+        "command": "ninja",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build-raspi64"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "build pistorm",
+        "command": "ninja",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build-pistorm"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "install pistorm",
+        "command": "ninja",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "args": ["install"],
+        "options": {
+          "cwd": "${workspaceFolder}/build-pistorm"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "install raspi64",
+        "command": "ninja",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "args": ["install"],
+        "options": {
+          "cwd": "${workspaceFolder}/build-raspi64"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "build pbpro",
+        "command": "make",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build-pbpro"
+        },
+        "group": "build"
+      }
+    ]
+}

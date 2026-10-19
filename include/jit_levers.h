@@ -114,6 +114,17 @@ int  jit_levers_temp_active(void);
 int  jit_levers_cache_on(void);
 
 int  jit_levers_host_tick(void);
+#define JIT_JF_LEV_LAZYFPSR  0x01u
+#define JIT_JF_LEV_FPMEM     0x02u
+#define JIT_JF_LEV_FPSTORE   0x04u
+#define JIT_JF_LEV_AS3392    0x08u
+#define JIT_JF_LEV_FNOP      0x10u
+#define JIT_JF_LEV_DEFAULT   0x11u
+#define JIT_JU_UNROLL_MASK   0x0Fu
+#define JIT_JU_LEV_DEFAULT   0x04u
+#if JIT_JU_LEV_DEFAULT
+uint32_t ju_unroll_cap(uint32_t n, uintptr_t first_copy_bytes);   /* jit_r10c.c b104_unroll_want_r10c's last word on n */
+#endif
 void      a1_tlsf_free(void *handle, void *ptr);
 void      a1_FlushFPSR(uint32_t **arm_stream);
 uintptr_t a1_translate_r10c(uint16_t *m68kcodeptr);

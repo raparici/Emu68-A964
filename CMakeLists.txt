@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 0.9.328)
+project(Emu68 VERSION 0.9.354)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
@@ -9,8 +9,9 @@ set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
-set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64" "virt" "de10nano" "zynq7000" "de25nano")   # zynq7000, de25nano: TBD
-set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
+# the ARMv7 targets; the AArch64 ones (raspi64, pbpro, rockpro64, virt; de25nano planned) build from a64/ (upstream Emu68)
+set(SUPPORTED_TARGETS "raspi" "de10nano" "zynq7000")   # zynq7000: TBD
+set(TARGET "de10nano" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
 set(SUPPORTED_VARIANTS "none" "pistorm" "minimig")
@@ -208,35 +209,17 @@ endif()
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
-    if(${TARGET} STREQUAL "zynq7000" OR ${TARGET} STREQUAL "de25nano")
+    if(${TARGET} STREQUAL "zynq7000")
         message(FATAL_ERROR "TARGET ${TARGET}: TBD")
     endif()
-    if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
-        if (${TARGET} STREQUAL "raspi64")
-            list(APPEND TARGET_FILES src/raspi/start_rpi64.c)
-        else()
-            list(APPEND TARGET_FILES src/raspi/start_rpi.c)
-        endif()
+    if(${TARGET} STREQUAL "raspi")
+        list(APPEND TARGET_FILES src/raspi/start_rpi.c)
         list(APPEND TARGET_FILES src/raspi/support_rpi.c)
         download_raspi_firmware()
         install(DIRECTORY ${CMAKE_BINARY_DIR}/firmware/ DESTINATION .)
         install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
         install(FILES ${CMAKE_SOURCE_DIR}/scripts/config.txt DESTINATION .)
         add_compile_definitions(RASPI)
-    elseif(${TARGET} STREQUAL "pbpro")
-        list(APPEND TARGET_FILES
-            src/pine64/start_pbpro.c
-            src/pine64/support_pbpro.c
-        )
-        install(FILES ${CMAKE_SOURCE_DIR}/blobs/rk3399-pinebookpro.dtb DESTINATION .)
-        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
-        install(FILES ${CMAKE_SOURCE_DIR}/scripts/extlinux.conf DESTINATION extlinux/)
-    elseif(${TARGET} STREQUAL "virt")
-        list(APPEND TARGET_FILES
-            src/virt/start_virt.c
-            src/virt/support_virt.c
-        )
-        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
     elseif(${TARGET} STREQUAL "de10nano")
         # DE10-Nano: bare metal on the second Cortex-A9 of the Cyclone V HPS
         list(APPEND TARGET_FILES
@@ -251,11 +234,7 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         add_compile_definitions(EMU68_BANK_FASTPATH)
     endif()
 
-    if (${TARGET} STREQUAL "raspi" OR ${TARGET} STREQUAL "de10nano")
-        set(TARGET_ARCH "armhf")
-    else()
-        set(TARGET_ARCH "aarch64")
-    endif()
+    set(TARGET_ARCH "armhf")
 else()
     message(FATAL_ERROR "Wrong target machine specified: ${TARGET}")
 endif()
@@ -263,7 +242,7 @@ endif()
 if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
     message("-- Selected variant: ${VARIANT}")
     if(${VARIANT} STREQUAL "pistorm")
-        if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
+        if(${TARGET} STREQUAL "raspi")
             add_compile_definitions(PISTORM)
             include_directories(src/pistorm)
             list(APPEND BASE_FILES
@@ -285,6 +264,11 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
                 src/pistorm/chipset_backend_axi.c
                 src/de10nano/cpuram_boards.c
             )
+            # core #1's JIT pool and the GL arena in the shared PL310 L2 (outer write-back, two ways): src/de10nano/l2c1.c,
+            # the image's last bytes (scripts/ldscript-be-de10.lds); its two hooks are linker wraps, below
+            list(APPEND BASE_FILES src/de10nano/l2c1.c)
+            set_source_files_properties(src/de10nano/l2c1.c PROPERTIES COMPILE_OPTIONS "-Os;-fno-merge-constants;-mgeneral-regs-only")
+            set(EMU68_L2C1 ON)
             if(EMU68_SEAM_POSTED_WR)
                 add_compile_definitions(EMU68_SEAM_POSTED_WR)
             endif()
@@ -391,7 +375,10 @@ if(${TARGET_ARCH} STREQUAL "armhf")
         src/armhf/glue.c
         src/armhf/aeabi_ldivmod.c
         src/armhf/RA_nofp.c
+        src/jit_b162.c
+        src/jit_b166.c
     )
+    set_source_files_properties(src/jit_b162.c src/jit_b166.c PROPERTIES COMPILE_OPTIONS "-Os;-fno-merge-constants;-mgeneral-regs-only")
     if(${VARIANT} STREQUAL "minimig")
         list(APPEND ARCH_FILES src/armhf/vectors.c)
         # the data-abort path is general-register only
@@ -413,21 +400,6 @@ if(${TARGET_ARCH} STREQUAL "armhf")
     else()
         add_compile_options(-mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -O3 -ffixed-r11 -fomit-frame-pointer)
     endif()
-else()
-    list(APPEND ARCH_FILES
-        src/aarch64/start.c
-        src/aarch64/mmu.c
-        src/aarch64/RegisterAllocator64.c
-        src/aarch64/vectors.c
-    )
-    set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
-    set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
-    add_link_options(-Wl,-EB -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-    add_compile_options(-march=armv8-a+crc -fomit-frame-pointer -O3 -ffixed-x12)
-
-    if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
-        add_compile_options(-mno-outline-atomics)
-    endif()
 endif()
 
 add_executable(Emu68.elf
@@ -439,6 +411,15 @@ add_executable(Emu68.elf
 # the 3D heap's second region: these functions reach src/de10nano/agent3d/a3d_heapb.c
 if(EMU68_A3D)
     target_link_options(Emu68.elf PRIVATE "-Wl,--wrap=a3d_heap_init,--wrap=a3d_heap_phys,--wrap=a3d_heap_va,--wrap=a3d_ls_va")
+endif()
+# the translators' calls to the opcode groups' emitters and two allocator entry points reach src/jit_b162.c's wrappers
+if(${TARGET_ARCH} STREQUAL "armhf")
+    target_link_options(Emu68.elf PRIVATE "-Wl,--wrap=EMIT_line0,--wrap=EMIT_move,--wrap=EMIT_line4,--wrap=EMIT_line5,--wrap=EMIT_line6,--wrap=EMIT_moveq,--wrap=EMIT_line8,--wrap=EMIT_line9,--wrap=EMIT_lineB,--wrap=EMIT_lineC,--wrap=EMIT_lineD,--wrap=EMIT_lineE,--wrap=EMIT_lineF,--wrap=RA_FlushFPURegs,--wrap=RA_ResetM68kAllocator")
+endif()
+# the JIT pool's allocator and the dispatcher's tick reach src/de10nano/l2c1.c's wrappers (the pool invalidated in the L2
+# before its first use; the L2 switched on)
+if(EMU68_L2C1)
+    target_link_options(Emu68.elf PRIVATE "-Wl,--wrap=tlsf_init_with_memory,--wrap=jit_levers_host_tick")
 endif()
 
 add_custom_command(
@@ -456,7 +437,5 @@ if(${TARGET_ARCH} STREQUAL "armhf")
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/emit
         ${CMAKE_SOURCE_DIR}/external/capstone/include)
-else()
-    target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
 endif()
 target_compile_definitions(Emu68.elf PRIVATE VERSION_STRING="${VERSTRING}")

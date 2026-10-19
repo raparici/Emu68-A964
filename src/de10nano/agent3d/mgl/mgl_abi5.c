@@ -1347,10 +1347,11 @@ static void lit_element(GLcontext c, GLint i)
 }
 static void dl_element(GLcontext c, GLint i)    /* one element's calls into the list being compiled */
 {
+    mgl_ctx5 *const x5 = X5(c);
     mgl_afetched f;
     mgl_array_fetch(c, i, &f);
     uint32_t *w;
-    if (f.has_col && (w = dl_put(c, OP5_GLColor4f, 4u)))
+    if (f.has_col && (w = M2B_PUT(c, x5, OP5_GLColor4f, 4u)))
         for (uint32_t k = 0; k < 4u; k++)
             w[k] = fbits(f.col[k]);
     for (uint32_t u = 0; u < MGL_UNITS; u++)
@@ -1359,11 +1360,11 @@ static void dl_element(GLcontext c, GLint i)    /* one element's calls into the 
             continue;
         if (u == 0)
         {
-            if ((w = dl_put(c, OP5_GLTexCoord4f, 4u)))
+            if ((w = M2B_PUT(c, x5, OP5_GLTexCoord4f, 4u)))
                 for (uint32_t k = 0; k < 4u; k++)
                     w[k] = fbits(f.tex[0][k]);
         }
-        else if ((w = dl_put(c, OP5_TEXUNIT, 3u)))
+        else if ((w = M2B_PUT(c, x5, OP5_TEXUNIT, 3u)))
         {
             w[0] = GL_TEXTURE0_ARB + u;
             w[1] = fbits(f.tex[u][0]);
@@ -1371,10 +1372,10 @@ static void dl_element(GLcontext c, GLint i)    /* one element's calls into the 
         }
     }
     float nrm[3];
-    if (normal_at(c, i, nrm) && (w = dl_put(c, OP5_GLNormal3f, 3u)))
+    if (normal_at(c, i, nrm) && (w = M2B_PUT(c, x5, OP5_GLNormal3f, 3u)))
         for (uint32_t k = 0; k < 3u; k++)
             w[k] = fbits(nrm[k]);
-    if (f.has_vtx && (w = dl_put(c, OP5_GLVertex4f, 4u)))
+    if (f.has_vtx && (w = M2B_PUT(c, x5, OP5_GLVertex4f, 4u)))
         for (uint32_t k = 0; k < 4u; k++)
             w[k] = fbits(f.vtx[k]);
 }
@@ -1510,7 +1511,8 @@ void a5_GLMultiDrawArrays(GLcontext c, GLenum mode, const GLint *first, const GL
 #define M2BA_TS(l, u) (((l) >> (7u + 3u * (u))) & 7u)   /* unit u's texture coordinates: 0..4 floats            */
 #define M2BA_N      (1u << 13)                  /* the normal: 3 floats                                          */
 #define M2BA_CT(l)  (((l) >> 14) & 3u)          /* a byte colour's type: GL_UNSIGNED_BYTE, MGL_UBYTE_ARGB, _BGRA  */
-static inline uint32_t m2ba_rd(const uint8_t *p) { uint32_t x; memcpy(&x, p, 4); return x; }
+typedef uint32_t m2ba_u32u __attribute__((aligned(1), may_alias));
+static inline uint32_t m2ba_rd(const uint8_t *p) { return *(const m2ba_u32u *)(const void *)p; }
 static inline uint32_t m2ba_bytecol(GLenum t) { return t == GL_UNSIGNED_BYTE || t == MGL_UBYTE_ARGB || t == MGL_UBYTE_BGRA; }
 static inline uint32_t m2ba_es(const mgl_array *a)   /* (the element's bytes: a byte colour 1 a component) */
 {
@@ -1519,14 +1521,24 @@ static inline uint32_t m2ba_es(const mgl_array *a)   /* (the element's bytes: a 
 static inline uint32_t m2ba_rd3(const uint8_t *p) { uint32_t x = 0; memcpy(&x, p, 3); return x; }
 static inline int m2b_arrfb(mgl_ctx5 *x5, uint32_t why) { x5->m2b_arrfb++; x5->m2b_arrwhy |= why; return 0; }
 
-static int m2b_arrays_rec(GLcontext c, mgl_ctx5 *x5, GLenum mode, GLint first, GLsizei count, GLenum itype,
-                          const GLvoid *idx)
+typedef struct m2ba_plan
 {
-    const mgl_array *ar[5] = { &c->va_vertex, &c->va_color, &c->va_tex[0], &c->va_tex[1], &x5->va_normal };
-    uint32_t nw[5] = { 0, 0, 0, 0, 0 }, lay = 0;
+    const mgl_array *ar[5];                     /* vertex, colour, unit 0, unit 1, normal                         */
+    uint32_t nw[5], es[5], off[5];              /* words a vertex, bytes an element, offset in the op's vertex    */
+    uint32_t lay, wpv, raw, stride;             /* raw: one struct span copied whole (stride bytes apart)         */
+    const uint8_t *base;
+} m2ba_plan;
+
+static int m2ba_plan_make(GLcontext c, mgl_ctx5 *x5, m2ba_plan *P)    /* 0 = a layout the op does not take */
+{
+    const mgl_array *const *const ar = P->ar;
+    P->ar[0] = &c->va_vertex; P->ar[1] = &c->va_color; P->ar[2] = &c->va_tex[0]; P->ar[3] = &c->va_tex[1];
+    P->ar[4] = &x5->va_normal;
+    uint32_t *const nw = P->nw, *const off = P->off;
+    uint32_t lay = 0;
+    for (uint32_t a = 0; a < 5u; a++)
+        nw[a] = off[a] = P->es[a] = 0;
     const mgl_array *const va = ar[0];
-    if (!x5->m2b || count <= 0)
-        return 0;
     if (!va->enabled || !va->ptr || va->type != GL_FLOAT || va->size < 2 || va->size > 4)
         return m2b_arrfb(x5, 1u);
     lay = (uint32_t)va->size;
@@ -1565,7 +1577,7 @@ static int m2b_arrays_rec(GLcontext c, mgl_ctx5 *x5, GLenum mode, GLint first, G
         lay |= M2BA_N;
     }
     const uint8_t *base = 0, *top = 0;
-    uint32_t stride = 0, raw = 1;
+    uint32_t stride = 0, raw = 1, wpv = 0;
     for (uint32_t a = 0; a < 5u && raw; a++)
     {
         if (!nw[a])
@@ -1579,7 +1591,6 @@ static int m2b_arrays_rec(GLcontext c, mgl_ctx5 *x5, GLenum mode, GLint first, G
         if (ar[a]->ptr + 4u * nw[a] > top)
             top = ar[a]->ptr + 4u * nw[a];
     }
-    uint32_t off[5] = { 0, 0, 0, 0, 0 }, wpv = 0;
     if (raw && (uint32_t)(top - base) <= stride && !(stride & 3u) && (uint32_t)(top - base) <= 4u * 31u)
     {
         for (uint32_t a = 0; a < 5u; a++)
@@ -1600,50 +1611,123 @@ static int m2b_arrays_rec(GLcontext c, mgl_ctx5 *x5, GLenum mode, GLint first, G
         {
             off[a] = wpv;
             wpv += nw[a];
+            P->es[a] = nw[a] ? m2ba_es(ar[a]) : 0u;
         }
         if (wpv > 31u)
             return m2b_arrfb(x5, 16u);
     }
-    if ((uint32_t)count > (MGL_M2B_WORDS - 8u) / wpv)
-        return m2b_arrfb(x5, 16u);              /* (longer than a buffer: the call-per-attribute recording) */
-    M2B_TPEND(c, x5);
-    uint32_t *w = dl_put(c, OP5_M2BARR, 5u + (uint32_t)count * wpv);
+    P->lay = lay;
+    P->wpv = wpv;
+    P->raw = raw;
+    P->stride = stride;
+    P->base = base;
+    return 1;
+}
+
+static inline __attribute__((always_inline)) uint32_t *m2ba_vertex(const m2ba_plan *P, uint32_t *o, uint32_t i)
+{
+    if (P->raw)
+    {
+        const m2ba_u32u *p = (const m2ba_u32u *)(const void *)(P->base + P->stride * i);
+        for (uint32_t j = 0; j < P->wpv; j++)
+            *o++ = p[j];
+        return o;
+    }
+    for (uint32_t a = 0; a < 5u; a++)
+    {
+        if (!P->nw[a])
+            continue;
+        const uint8_t *p = P->ar[a]->ptr + P->es[a] * i;
+        if (a == 1u && (P->lay & M2BA_CUB))
+            *o++ = P->ar[1]->size == 3 ? m2ba_rd3(p) : m2ba_rd(p);  /* (the bytes as they are in memory) */
+        else
+            for (uint32_t j = 0; j < P->nw[a]; j++)
+                *o++ = m2ba_rd(p + 4u * j);
+    }
+    return o;
+}
+
+static int m2ba_op(GLcontext c, mgl_ctx5 *x5, const m2ba_plan *P, GLenum mode, GLint first, GLenum itype,
+                   const GLvoid *idx, uint32_t k0, uint32_t n, uint32_t pre)
+{
+    const uint32_t nv = n + pre, wpv = P->wpv;
+    uint32_t *w = dl_put(c, OP5_M2BARR, 5u + nv * wpv);
     if (!w)
-        return 1;                               /* (out of memory: dl_put reported it) */
+        return 0;
     x5->m2b_arrops++;
     w[0] = mode;
-    w[1] = (uint32_t)count;
-    w[2] = lay;
+    w[1] = nv;
+    w[2] = P->lay;
     w[3] = wpv;
-    w[4] = off[0] | off[1] << 5 | off[2] << 10 | off[3] << 15 | off[4] << 20;
+    w[4] = P->off[0] | P->off[1] << 5 | P->off[2] << 10 | P->off[3] << 15 | P->off[4] << 20;
     uint32_t *o = w + 5;
-    if (raw)
+    if (pre)
+        o = m2ba_vertex(P, o, (uint32_t)(idx ? index_at(idx, itype, 0) : first));
+    if (!idx && P->raw && P->stride == 4u * wpv)
     {
-        for (GLsizei k = 0; k < count; k++)
+        const m2ba_u32u *p = (const m2ba_u32u *)(const void *)(P->base + P->stride * ((uint32_t)first + k0));
+        uint32_t m = n * wpv;
+        for (; m >= 4u; m -= 4u, o += 4, p += 4)
         {
-            const uint8_t *p = base + stride * (uint32_t)(idx ? index_at(idx, itype, k) : first + k);
-            for (uint32_t j = 0; j < wpv; j++)
-                *o++ = m2ba_rd(p + 4u * j);
+            o[0] = p[0];
+            o[1] = p[1];
+            o[2] = p[2];
+            o[3] = p[3];
         }
+        for (; m; m--)
+            *o++ = *p++;
         return 1;
     }
-    uint32_t es[5];
-    for (uint32_t a = 0; a < 5u; a++)
-        es[a] = nw[a] ? m2ba_es(ar[a]) : 0u;
-    for (GLsizei k = 0; k < count; k++)
-    {
-        const uint32_t i = (uint32_t)(idx ? index_at(idx, itype, k) : first + k);
-        for (uint32_t a = 0; a < 5u; a++)
-        {
-            const uint8_t *p = nw[a] ? ar[a]->ptr + es[a] * i : 0;
-            if (a == 1u && (lay & M2BA_CUB))
-                *o++ = ca->size == 3 ? m2ba_rd3(p) : m2ba_rd(p);    /* (the bytes as they are in memory) */
-            else
-                for (uint32_t j = 0; j < nw[a]; j++)
-                    *o++ = m2ba_rd(p + 4u * j);
-        }
-    }
+    for (uint32_t k = k0; k < k0 + n; k++)
+        o = m2ba_vertex(P, o, (uint32_t)(idx ? index_at(idx, itype, (GLsizei)k) : first + (GLint)k));
     return 1;
+}
+
+static int m2ba_split(GLenum mode, uint32_t cap, uint32_t *room, uint32_t *ovl, uint32_t *fan)
+{
+    *ovl = 0;
+    *fan = 0;
+    switch (mode)
+    {
+    case GL_POINTS:         *room = cap; break;
+    case GL_LINES:          *room = cap & ~1u; break;
+    case GL_TRIANGLES:      *room = cap - cap % 3u; break;
+    case GL_QUADS:          *room = cap & ~3u; break;
+    case GL_LINE_STRIP:     *room = cap; *ovl = 1; break;
+    case GL_TRIANGLE_STRIP:
+    case GL_QUAD_STRIP:
+    case MGL_FLATSTRIP:     *room = cap & ~1u; *ovl = 2; break;
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+    case MGL_FLATFAN:       *room = cap; *ovl = 1; *fan = 1; break;
+    default:                return 0;
+    }
+    return *room > *ovl + 1u + *fan;            /* (each op moves on: always, cap >= 528) */
+}
+
+static int m2b_arrays_rec(GLcontext c, mgl_ctx5 *x5, GLenum mode, GLint first, GLsizei count, GLenum itype,
+                          const GLvoid *idx)
+{
+    m2ba_plan P;
+    if (!x5->m2b || count <= 0 || !m2ba_plan_make(c, x5, &P))
+        return 0;
+    const uint32_t cap = (MGL_M2B_WORDS - 8u) / P.wpv, total = (uint32_t)count;
+    uint32_t room = cap, ovl = 0, fan = 0;
+    if (total > cap && !m2ba_split(mode, cap, &room, &ovl, &fan))
+        return m2b_arrfb(x5, 16u);              /* (longer than a buffer, not split: the call-per-attribute recording) */
+    M2B_TPEND(c, x5);
+    for (uint32_t s = 0;;)
+    {
+        const uint32_t pre = fan && s ? 1u : 0u;
+        uint32_t n = room - pre;
+        if (n >= total - s)
+            n = total - s;
+        if (!m2ba_op(c, x5, &P, mode, first, itype, idx, s, n, pre))
+            return 1;                           /* (out of memory: dl_put reported it) */
+        if (s + n >= total)
+            return 1;
+        s += n - ovl;
+    }
 }
 
 static void m2b_arrays_replay(GLcontext c, const uint32_t *w, uint32_t n)

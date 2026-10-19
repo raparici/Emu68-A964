@@ -4,3 +4,13 @@
 [submodule "external/capstone"]
 	path = external/capstone
 	url = https://github.com/michalsc/capstone.git
+# a64/ = upstream Emu68 (AArch64 targets); its submodules, as in a64/.gitmodules
+[submodule "a64/external/tiny-stl"]
+	path = a64/external/tiny-stl
+	url = https://github.com/michalsc/tiny-std.git
+[submodule "a64/external/capstone"]
+	path = a64/external/capstone
+	url = https://github.com/michalsc/capstone.git
+[submodule "a64/external/libdeflate"]
+	path = a64/external/libdeflate
+	url = https://github.com/ebiggers/libdeflate.git

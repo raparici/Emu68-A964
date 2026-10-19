@@ -684,10 +684,9 @@ unhandled:
             emu68_input_shim = 0;
         }
         {
-            extern volatile int g_blitwait;
-            extern void jit_blitwait_spin(void);
-            if (__builtin_expect(g_blitwait != 0, 0) && dfar >= 0x00DFF040u && dfar <= 0x00DFF076u)
-                jit_blitwait_spin();
+            extern void emu68_store_gate(unsigned int address, unsigned int data, unsigned int size);
+            if (__builtin_expect(dfar - 0x00DFF040u <= 0x56u, 0))
+                emu68_store_gate(dfar, v, size);
         }
         switch (size) {
             case 1:  ps_write_8(dfar, v & 0xff);    break;

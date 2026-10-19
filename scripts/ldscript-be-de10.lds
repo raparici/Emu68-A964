@@ -21,8 +21,8 @@ SECTIONS
         *(.startup)
         PROVIDE(g_note_build_id = .);
         *(.note.gnu.build-id)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .text)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_mgl.c.obj *mgl_stage.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .text.*)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .text)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_mgl.c.obj *mgl_stage.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .text.*)
         *(.stub)
         *(.gnu.warning)
         *(.gnu.linkonce.t.*)
@@ -41,8 +41,8 @@ SECTIONS
 
     .rodata ALIGN(0x1000) :
     {
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .rodata)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_mgl.c.obj *mgl_stage.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .rodata.*)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .rodata)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_mgl.c.obj *mgl_stage.c.obj *a3d_r8.c.obj *zz_aprime.c.obj *zz_r9.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .rodata.*)
         *(.gnu.linkonce.r.*)
 
         . = ALIGN(32);
@@ -62,8 +62,8 @@ SECTIONS
     .data ALIGN(0x1000) :
     {
         *core.bin.o(.data)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .data)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .data.*)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .data)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *a3d_r8.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .data.*)
         *(.gnu.linkonce.d.*)
     }
 
@@ -103,14 +103,14 @@ SECTIONS
 
     .bss ALIGN(0x1000) :
     {
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .bss)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .bss.[!~]*)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .bss)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10c.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .bss.[!~]*)
         *(.gnu.linkonce.b.*)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) COMMON)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) COMMON)
         *(.bss.~a3d_r8)
         *(.bss.~zz_ap)
         *(.bss.~r9)
-        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10a1.c.obj *a3d_heapb.c.obj) .bss.~*)
+        *(EXCLUDE_FILE(*a3d_mglc.c.obj *mgl_geom.c.obj *mgl_state.c.obj *mgl_math.c.obj *mgl_rsplan.c.obj *mgl_abi5.c.obj *mgl_glu.c.obj *mgl_light.c.obj *mgl_glutq.c.obj *mgl_mtex.c.obj *mgl_readpx.c.obj *mgl_texds.c.obj *mgl_texgen.c.obj *jit_r10a1.c.obj *jit_b162.c.obj *jit_b166.c.obj *a3d_heapb.c.obj) .bss.~*)
         *jit_r10c.c.obj(.bss .bss.* COMMON)
         *jit_r10a1.c.obj(.bss .bss.* COMMON)
         *a3d_heapb.c.obj(.bss .bss.* COMMON)
@@ -144,6 +144,7 @@ SECTIONS
         *(.r10a1_tail_rodata)
         *jit_r10a1.c.obj(.text .text.* .rodata .rodata.* .data .data.*)
         *a3d_heapb.c.obj(.text .text.* .rodata .rodata.* .data .data.*)
+        __mglc_start = .;
         *(.mglc_tail_text)
         *a3d_mglc.c.obj(.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
         *mgl_geom.c.obj(.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
@@ -158,8 +159,19 @@ SECTIONS
         *mgl_readpx.c.obj(.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
         *mgl_texds.c.obj(.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
         *mgl_texgen.c.obj(.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
-       (.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
+        __mglc_end = .;
+        . = __mglc_start + 0x4947C;
+        *(.b162_tail_text)
+        *(.b162_tail_data)
+        *jit_b162.c.obj(.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
+        *(.b166_tail_text)
+        *(.b166_tail_data)
+        *jit_b166.c.obj(.text .text.* .rodata .rodata.* .data .data.* .bss .bss.* COMMON)
+        *(.l2c1_tail_text)
+        *(.l2c1_tail_rodata)
+        *(.l2c1_tail_data)
     }
+    ASSERT(__mglc_end <= __mglc_start + 0x4947C, "the GL core outgrew its slot (fw 0.9.352): raise it by 0x2000")
     . = ALIGN(0x1000);
 
     _end = . ;

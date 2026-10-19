@@ -1,0 +1,9 @@
+[submodule "libtinystd"]
+	path = external/tiny-stl
+	url = https://github.com/michalsc/tiny-std.git
+[submodule "external/capstone"]
+	path = external/capstone
+	url = https://github.com/michalsc/capstone.git
+[submodule "external/libdeflate"]
+	path = external/libdeflate
+	url = https://github.com/ebiggers/libdeflate.git

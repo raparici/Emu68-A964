@@ -382,6 +382,9 @@ R10C_TEXT static unsigned b104_unroll_want_r10c(uint32_t body_insns, uintptr_t u
                   ? (Options.M68K_TRANSLATION_DEPTH + 1u - body_insns) / body_insns : 0u;
         if (n > cap) n = cap;
     }
+#if JIT_JU_LEV_DEFAULT
+    n = ju_unroll_cap(n, used_bytes - prologue_bytes);
+#endif
     if (n > 1u) {
         uintptr_t per  = used_bytes - prologue_bytes;
         per += per / 4u + 64u;
